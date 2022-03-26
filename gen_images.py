@@ -7,7 +7,7 @@
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 """Generate images using pretrained network pickle."""
-
+import tensorflow as tf
 import os
 import re
 from typing import List, Optional, Tuple, Union
@@ -232,8 +232,8 @@ def generate_with_noise(network_pkl: str,
 
     '''loading FER model'''
     img_util = ImageUtilities()
-    # fer_class = FER(h5_address='/media/ali/extradata/Ad-Corre-weights/AffectNet_6336.h5')
-    fer_class = FER(h5_address='/media/ali/extradata/Ad-Corre-weights/RafDB_8696.h5')
+    fer_class = FER(h5_address='/media/ali/extradata/Ad-Corre-weights/AffectNet_6336.h5')
+    # fer_class = FER(h5_address='/media/ali/extradata/Ad-Corre-weights/RafDB_8696.h5')
 
     # Generate images.
     f = open(f'/media/ali/extradata/styleGAN3_samples/v1/annotation.txt', "w")
@@ -251,16 +251,16 @@ def generate_with_noise(network_pkl: str,
 
         # convert image to npy
         npy_img = img[0].cpu().numpy()
-        # extract expression
-        exp, exp_vec = fer_class.recognize_fer(npy_img=npy_img)
         # resize image to 512 * 512 * 3
         resized_npy_img = img_util.resize_image(npy_img=npy_img, w=512, h=512, ch=3)
         # save image
-        img_util.save_image(npy_img=resized_npy_img, save_path=outdir + FolderStructures.interpolate_images,
+        img_util.save_image(npy_img=resized_npy_img, save_path=outdir + FolderStructures.images,
                             save_name=str(jj))
-        np.save(file=f'{outdir}{FolderStructures.interpolate_feature_vectors}/exp_{str(jj)}',
+        # extract expression
+        exp, exp_vec = fer_class.recognize_fer(npy_img=npy_img)
+        np.save(file=f'{outdir}{FolderStructures.feature_vectors}/exp_{str(jj)}',
                 arr=np.round(exp_vec, decimals=3))
-        np.save(file=f'{outdir}{FolderStructures.interpolate_noise_vectors}/{str(jj)}', arr=noise)
+        np.save(file=f'{outdir}{FolderStructures.noise_vectors}/{str(jj)}', arr=noise)
 
         f.write(
             str(jj) + ' : ' + exps_str[np.argmax(exp_vec)] + '===> ' + ''.join(str(e) for e in list(exp_vec)) + '\n\r')
@@ -332,6 +332,18 @@ def analyze_images():
 
 
 if __name__ == "__main__":
+    fer_class = FER()
+    noises = fer_class.create_noise(h5_address='./g_an.h5', exp_id=6, num=100)
+    generate_with_noise(network_pkl="/media/ali/extradata/styleGAN3_pkls/stylegan3-r-ffhq-1024x1024.pkl",
+                        noises=noises,
+                        truncation_psi=0.7,
+                        noise_mode='const',  # 'const', 'random', 'none'],
+                        outdir='/media/ali/extradata/styleGAN3_samples/v1/',
+                        translate=parse_vec2('0,0'),
+                        rotate=0,
+                        class_idx=0)
+
+
     # noise = np.load(file=f'/media/ali/extradata/styleGAN3_samples/v1/{FolderStructures.noise_vectors}/{str(0)}.npy')
     # exp = np.load(file=f'/media/ali/extradata/styleGAN3_samples/v1/{FolderStructures.feature_vectors}/{str(0)}.npy')
 
@@ -350,7 +362,7 @@ if __name__ == "__main__":
     #                     rotate=0,
     #                     class_idx=0)
 
-    analyze_images()
+    # analyze_images()
 
     # generate_fixed(network_pkl="/media/ali/extradata/styleGAN3_pkls/stylegan3-r-ffhq-1024x1024.pkl",
     #                seeds=parse_range('1000-100000'),
