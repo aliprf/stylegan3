@@ -493,7 +493,7 @@ def create_pca_age():
 
 
 if __name__ == "__main__":
-    _fer_class = FER(h5_address=PreTrainedModels().exp_model, GPU=True)
+    _fer_class = FER(h5_address=PreTrainedModels.exp_model, GPU=True)
     asm = ASM()
 
     analyze_fer_images(_fer_class)
