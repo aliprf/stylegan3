@@ -22,3 +22,16 @@ dependencies:
     - pyopengl==3.1.5
     - imageio-ffmpeg==0.4.3
     - pyspng
+    -  bottleneck
+    - tensorflow-gpu==2.6
+    - keras==2.6
+    - numpy
+    - matplotlib
+    - opencv-python
+    - opencv-contrib-python
+    - scipy
+    - scikit-learn
+    - scikit-image
+    - Pillow
+    - tqdm
+    - tensorboard
