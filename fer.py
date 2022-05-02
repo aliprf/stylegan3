@@ -23,6 +23,7 @@ class FER:
 
         if GPU:
             physical_devices = tf.config.list_physical_devices('GPU')
+            print(len(physical_devices))
             tf.config.experimental.set_memory_growth(physical_devices[0], True)
         if h5_address is not None:
             self._model = self._load_model(h5_address=h5_address)
