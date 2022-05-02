@@ -1,6 +1,6 @@
 bottleneck
-tensorflow-gpu==2.4
-keras
+tensorflow-gpu==2.6
+keras==2.6
 numpy
 matplotlib
 opencv-python
