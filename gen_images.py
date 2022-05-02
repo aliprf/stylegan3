@@ -26,7 +26,7 @@ import torch
 import legacy
 from fer import FER
 
-from config import FolderStructures
+from config import FolderStructures, PreTrainedModels
 from image_utility import ImageUtilities
 from analyze_fer import AnalyzeFer
 import random
@@ -317,8 +317,8 @@ def analyze_gender_images():
 
 def analyze_fer_images(_fer_class):
     analyser = AnalyzeFer(
-        exp_path=f'/media/ali/extradata/styleGAN3_samples/v1/{FolderStructures.interpolate_feature_vectors}',
-        noise_path=f'/media/ali/extradata/styleGAN3_samples/v1/{FolderStructures.interpolate_noise_vectors}')
+        exp_path=f'{FolderStructures.prefix}{FolderStructures.interpolate_feature_vectors}',
+        noise_path=f'{FolderStructures.prefix}{FolderStructures.interpolate_noise_vectors}')
     #
     # analyser = AnalyzeFer(exp_path=f'/media/ali/extradata/styleGAN3_samples/v1/{FolderStructures.feature_vectors}',
     #                    noise_path=f'/media/ali/extradata/styleGAN3_samples/v1/{FolderStructures.noise_vectors}')
@@ -367,26 +367,26 @@ def analyze_fer_images(_fer_class):
     pre_names = ['a_ch', 'a_bl_fe']
 
     inter_functions_arr = analyser.interpolate_by_semantic(
-        noise_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/noise_vectors',
-        anno_path_fer=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/feature_vectors',
+        noise_path=f'{FolderStructures.prefix}zz_productin/50K_moreAngry/noise_vectors',
+        anno_path_fer=f'{FolderStructures.prefix}zz_productin/50K_moreAngry/feature_vectors',
         task_id_fer=ANGRY,
-        anno_path_gender=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/gender_extraction',
+        anno_path_gender=f'{FolderStructures.prefix}zz_productin/50K_moreAngry/gender_extraction',
         task_id_gender=FEMALE,
-        anno_path_race=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/race_extraction',
+        anno_path_race=f'{FolderStructures.prefix}zz_productin/50K_moreAngry/race_extraction',
         task_id_race=BLACK,
-        anno_path_age=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/age_extraction',
+        anno_path_age=f'{FolderStructures.prefix}zz_productin/50K_moreAngry/age_extraction',
         task_id_age=CHILD)
     #
     for i, inter_functions in enumerate(inter_functions_arr):
         generate_with_interpolation_function(
-            network_pkl="/media/ali/extradata/styleGAN3_pkls/stylegan3-r-ffhq-1024x1024.pkl",
+            network_pkl=PreTrainedModels.styleGan_pkl,
             inter_functions=inter_functions,
             num_of_samples=15000,
             name_pre=pre_names[i],
             _fer_class=_fer_class,
             truncation_psi=0.7,
             noise_mode='const',  # 'const', 'random', 'none'],
-            outdir='/media/ali/extradata/styleGAN3_samples/v1/',
+            outdir=FolderStructures.prefix,
             translate=parse_vec2('0,0'),
             rotate=0,
             class_idx=0)
@@ -461,8 +461,8 @@ def create_pca_exp(pca_accuracy):
     HAPPY = 1
     ANGRY = 6
     asm.create_pca_from_npy(
-        noise_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/noise_vectors',
-        anno_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/feature_vectors',
+        noise_path=f'{FolderStructures.prefix}zz_productin/50K_moreAngry/noise_vectors',
+        anno_path=f'{FolderStructures.prefix}zz_productin/50K_moreAngry/feature_vectors',
         task_id=ANGRY,
         task='fer', pca_accuracy=pca_accuracy)
 
@@ -472,8 +472,8 @@ def create_pca_race(pca_accuracy):
     asm = ASM()
     BLACK = 2
     asm.create_pca_from_npy(
-        noise_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/noise_vectors',
-        anno_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/race_extraction',
+        noise_path=f'{FolderStructures.prefix}zz_productin/50K_moreAngry/noise_vectors',
+        anno_path=f'{FolderStructures.prefix}zz_productin/50K_moreAngry/race_extraction',
         task_id=BLACK,
         task='race', pca_accuracy=pca_accuracy)
 
@@ -486,15 +486,18 @@ def create_pca_age():
     MIDDLE = 2
     OLD = 3
     asm.create_pca_from_npy(
-        noise_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/noise_vectors',
-        anno_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/age_extraction',
+        noise_path=f'{FolderStructures.prefix}zz_productin/50K_moreAngry/noise_vectors',
+        anno_path=f'{FolderStructures.prefix}zz_productin/50K_moreAngry/age_extraction',
         task_id=0,
         task='age')
 
 
 if __name__ == "__main__":
-    _fer_class = FER(h5_address='/media/ali/extradata/Ad-Corre-weights/AffectNet_6336.h5', GPU=True)
+    _fer_class = FER(h5_address=PreTrainedModels().exp_model, GPU=True)
     asm = ASM()
+
+    analyze_fer_images(_fer_class)
+
     # noise = create_lda_exp(task_0='fer', task_1='race', task_id_0=6, task_id_1=2)
 
     # create_pca_exp(pca_accuracy=99)
@@ -572,8 +575,6 @@ if __name__ == "__main__":
     #                     translate=parse_vec2('0,0'),
     #                     rotate=0,
     #                     class_idx=0)
-
-    analyze_fer_images(_fer_class)
 
     # generate_fixed(network_pkl="/media/ali/extradata/styleGAN3_pkls/stylegan3-r-ffhq-1024x1024.pkl",
     #                seeds=parse_range('1000-100000'),

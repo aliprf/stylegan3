@@ -61,7 +61,6 @@ class ASM:
                np.expand_dims(np.mean(noise_arr_0,0), 0) , \
                np.expand_dims(np.mean(noise_arr_1,0), 0)
 
-
     def create_pca_from_npy(self, task, noise_path, anno_path, task_id, pca_accuracy=99):
         print('PCA calculation started: loading labels')
         noise_arr = []
@@ -75,12 +74,8 @@ class ASM:
                     fer_f = os.path.join(anno_path, 'exp_' + bare_f + '.npy')
                     fer = np.load(fer_f)[0]
                     if np.argmax(fer) == task_id and fer[task_id] >= 0.6:
-                        xxx = f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/gender_extraction'
-                        xxx_f = os.path.join(xxx, bare_f + '_gender.npy')
-                        sem = np.load(xxx_f)
-                        if np.argmax(sem) == 0:
-                            noise_arr.append(noise)
-                            i += 1
+                        noise_arr.append(noise)
+                        i += 1
                 if task == 'gender':
                     gender_f = os.path.join(anno_path, bare_f + '_gender.npy')
                     gender = np.load(gender_f)
