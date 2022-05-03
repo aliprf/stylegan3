@@ -3,7 +3,7 @@ channels:
   - pytorch
   - nvidia
 dependencies:
-  - python >= 3.8
+  - python = 3.8
   - pip
   - numpy>=1.20
   - click>=8.0
@@ -22,9 +22,9 @@ dependencies:
     - pyopengl==3.1.5
     - imageio-ffmpeg==0.4.3
     - pyspng
-    -  bottleneck
-    - tensorflow-gpu==2.6
-    - keras==2.6
+    - bottleneck
+    - tensorflow-gpu==2.4
+    - keras==2.4
     - numpy
     - matplotlib
     - opencv-python
