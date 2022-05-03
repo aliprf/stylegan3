@@ -20,7 +20,6 @@ from tqdm import tqdm
 class FER:
     def __init__(self, h5_address: str = None, GPU=True):
         self._exps = ['Neutral', 'Happy', 'Sad', 'Surprise', 'Fear', 'Disgust', 'Anger']
-
         if GPU:
             physical_devices = tf.config.list_physical_devices('GPU')
             print(len(physical_devices))
