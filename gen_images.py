@@ -493,9 +493,10 @@ def create_pca_age():
 
 
 if __name__ == "__main__":
+    print("---------------+++++++++++++++000+++++++++++++++++------------------")
     _fer_class = FER(h5_address=PreTrainedModels.exp_model, GPU=True)
+    print("---------------+++++++++++++++111+++++++++++++++++------------------")
     asm = ASM()
-
     analyze_fer_images(_fer_class)
 
     # noise = create_lda_exp(task_0='fer', task_1='race', task_id_0=6, task_id_1=2)
