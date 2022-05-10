@@ -35,11 +35,11 @@ class AgeExtraction:
                 histogram[age] += 1
         '''plot'''
         fig, ax = plt.subplots()
-        ax.bar(['0-15', '16-32', '33-53', '54-100'], histogram, color='g')
+        ax.bar(['0-15', '16-32', '33-53', '54-100'], histogram, color='#219ebc')
         for i, v in enumerate(histogram):
-            ax.text(i - .1, v + 3, str(v), color='red')
+            ax.text(i - .1, v + 3, str(v), color='#ff006e')
         plt.ylabel('Number of Samples', fontweight='bold')
-        plt.xlabel('Age Categorize', fontweight='bold')
+        plt.xlabel('Age', fontweight='bold')
         plt.savefig('age_hist.png')
 
     def predict_and_save(self, img_dir, out_dir, csv_file_path):

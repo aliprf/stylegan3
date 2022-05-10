@@ -30,9 +30,9 @@ class GenderExtraction:
                 histogram[gender] += 1
         '''plot'''
         fig, ax = plt.subplots()
-        ax.bar(['Female', 'Male'], histogram, color='b')
+        ax.bar(['Female', 'Male'], histogram, color='#219ebc')
         for i, v in enumerate(histogram):
-            ax.text(i - .1, v + 3, str(v), color='red')
+            ax.text(i - .1, v + 3, str(v), color='#ff006e')
         plt.ylabel('Number of Samples', fontweight='bold')
         plt.xlabel('Gender', fontweight='bold')
         plt.savefig('Gender_hist.png')

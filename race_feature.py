@@ -9,9 +9,10 @@ from image_utility import ImageUtilities
 
 
 class RaceExtraction:
-    def __init__(self, model_path):
-        physical_devices = tf.config.list_physical_devices('GPU')
-        tf.config.experimental.set_memory_growth(physical_devices[0], True)
+    def __init__(self, model_path, GPU=True):
+        if GPU:
+            physical_devices = tf.config.list_physical_devices('GPU')
+            tf.config.experimental.set_memory_growth(physical_devices[0], True)
         self._model = tf.keras.models.load_model(model_path)
 
     def predict_single_path(self, img_path):
@@ -33,9 +34,9 @@ class RaceExtraction:
                 histogram[race] += 1
         '''plot'''
         fig, ax = plt.subplots()
-        ax.bar(['asian', 'indian', 'black', 'white', 'mid-east', 'latino'], histogram, color='r')
+        ax.bar(['asian', 'indian', 'black', 'white', 'mid-east', 'latino'], histogram, color='#219ebc')
         for i, v in enumerate(histogram):
-            ax.text(i - .1, v + 3, str(v), color='red')
+            ax.text(i - .1, v + 3, str(v), color='#ff006e')
         plt.ylabel('Number of Samples', fontweight='bold')
         plt.xlabel('Race', fontweight='bold')
         plt.savefig('race_hist.png')

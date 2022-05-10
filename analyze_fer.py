@@ -5,6 +5,7 @@ from scipy import interpolate
 from tqdm import tqdm
 from scipy import interpolate, linalg
 import tensorflow as tf
+import cv2
 
 
 class AnalyzeFer:
@@ -51,9 +52,9 @@ class AnalyzeFer:
 
     def plot_histogram(self, file_name):
         fig, ax = plt.subplots()
-        ax.bar(self._expressions, self._histogram, color='g')
+        ax.bar(self._expressions, self._histogram, color='#219ebc')
         for i, v in enumerate(self._histogram):
-            ax.text(i - .1, v + 3, str(v), color='red')
+            ax.text(i - .1, v + 3, str(v), color='#ff006e')
         plt.ylabel('Number of Samples', fontweight='bold')
         plt.xlabel('Expressions', fontweight='bold')
         plt.savefig(file_name)
@@ -134,7 +135,7 @@ class AnalyzeFer:
                     noise_vectors_2.append(noise)
                 # fer + race + gender
                 if np.argmax(fer) == task_id_fer and fer[task_id_fer] >= 0.6 and \
-                        np.argmax(gender) == task_id_gender and gender[task_id_gender] >= 0.70 and\
+                        np.argmax(gender) == task_id_gender and gender[task_id_gender] >= 0.70 and \
                         np.argmax(race) == task_id_race and race[task_id_race] >= 0.70:
                     noise_vectors_3.append(noise)
         '''interpolation'''
@@ -148,8 +149,13 @@ class AnalyzeFer:
                 y_values[i] = np.array(nv)[:, i]
                 inter_functions.append(interpolate.CubicSpline(x_values, y_values[i]))
             inter_functions_arr.append(inter_functions)
-
-        return inter_functions_arr
+        # ['a_fe', 'a_bl', 'a_ch', 'a_bl_fe']
+        return {'a_fe': inter_functions_arr[0],
+                'a_bl': inter_functions_arr[1],
+                'a_ch': inter_functions_arr[2],
+                'a_bl_fe': inter_functions_arr[3]
+                }
+        # return inter_functions_arr
 
     def interpolate(self, exp_cat_path: str):
         noise_vectors = []
@@ -204,3 +210,16 @@ class AnalyzeFer:
         #         npy_noise[0, indices[ind]] = ind_sample
         #     gen_noise.append(npy_noise)
         return gen_noise
+
+    def create_csv(self, img_path, fer_path, csv_file_path):
+        f = open(csv_file_path, "w")
+        for file in tqdm(os.listdir(img_path)):
+            if file.endswith('.jpg'):
+                img_f = os.path.join(img_path, file)
+                bare_f = str(file).split('.')[0]
+                fer_f = os.path.join(fer_path, 'exp_' + bare_f + '.npy')
+                if os.path.exists(fer_f):
+                    fer = np.load(fer_f)
+                    f.write(str(os.path.splitext(file)[0]) + ',' +
+                            " ".join(str(x) for x in np.round(fer.tolist(), 3).tolist()) + ' \n')
+        f.close()

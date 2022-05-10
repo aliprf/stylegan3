@@ -21,8 +21,8 @@ class FER:
     def __init__(self, h5_address: str = None, GPU=True):
         self._exps = ['Neutral', 'Happy', 'Sad', 'Surprise', 'Fear', 'Disgust', 'Anger']
         if GPU:
+            # os.environ["CUDA_VISIBLE_DEVICES"] = "1"
             physical_devices = tf.config.list_physical_devices('GPU')
-            print(len(physical_devices))
             tf.config.experimental.set_memory_growth(physical_devices[0], True)
         if h5_address is not None:
             self._model = self._load_model(h5_address=h5_address)
@@ -34,13 +34,15 @@ class FER:
 
     def recognize_fer(self, npy_img):
         """create and image from the path and recognize expression"""
-        img_util = ImageUtilities()
         # resize img to 1*224*224*3
-        img = img_util.resize_image(npy_img=npy_img, w=224, h=224, ch=3)
+        img = ImageUtilities().resize_image(npy_img=npy_img, w=224, h=224, ch=3)
         img = np.expand_dims(img, axis=0)
         #
         prediction = self._model.predict_on_batch([img])
         exp_vector = np.array(prediction[0])
+
+        prediction = None
+        img = None
         # embeddings = prediction[1:]
         return self._exps[np.argmax(exp_vector)], exp_vector
 

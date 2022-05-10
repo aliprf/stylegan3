@@ -13,7 +13,8 @@ from scipy.linalg import svd
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis as QDA
 
-class ASM:
+
+class LinearProjection:
     _eigenvalues_prefix = "_eigenvalues_"
     _eigenvectors_prefix = "_eigenvectors_"
     _meanvector_prefix = "_meanvector_"
@@ -58,10 +59,10 @@ class ASM:
         print('')
         return np.expand_dims(lda.means_[0], 0), \
                np.expand_dims(lda.means_[1], 0), \
-               np.expand_dims(np.mean(noise_arr_0,0), 0) , \
-               np.expand_dims(np.mean(noise_arr_1,0), 0)
+               np.expand_dims(np.mean(noise_arr_0, 0), 0), \
+               np.expand_dims(np.mean(noise_arr_1, 0), 0)
 
-    def create_pca_from_npy(self, task, noise_path, anno_path, task_id, pca_accuracy=99):
+    def create_pca_from_npy(self, tasks, noise_path, fer_path, race_path, gender_path, age_path, name, pca_accuracy=99):
         print('PCA calculation started: loading labels')
         noise_arr = []
         i = 0
@@ -70,62 +71,90 @@ class ASM:
                 bare_f = str(file).split('.')[0]
                 noise_f = os.path.join(noise_path, file)
                 noise = np.load(noise_f)[0]
-                if task == 'fer':
-                    fer_f = os.path.join(anno_path, 'exp_' + bare_f + '.npy')
-                    fer = np.load(fer_f)[0]
-                    if np.argmax(fer) == task_id and fer[task_id] >= 0.6:
-                        noise_arr.append(noise)
-                        i += 1
-                if task == 'gender':
-                    gender_f = os.path.join(anno_path, bare_f + '_gender.npy')
-                    gender = np.load(gender_f)
-                    if np.argmax(gender) == task_id and gender[task_id] >= 0.95:
-                        noise_arr.append(noise)
-                        i += 1
-                if task == 'race':
-                    race_f = os.path.join(anno_path, bare_f + '_race.npy')
-                    race = np.load(race_f)
-                    if np.argmax(race) == task_id and race[task_id] >= 0.8:
-                        noise_arr.append(noise)
-                        i += 1
-                if task == 'age':
-                    age_f = os.path.join(anno_path, bare_f + '_age.npy')
-                    age = np.load(age_f)
-                    if np.argmax(age) == task_id and age[task_id] >= 0.9:
-                        noise_arr.append(noise)
-                        i += 1
-                if i > 10000:
-                    break
+                noise = np.clip(noise, -1.5, +1.5)
+
+                fer_f = os.path.join(fer_path, 'exp_' + bare_f + '.npy')
+                fer = np.load(fer_f)
+
+                gender_f = os.path.join(gender_path, bare_f + '_gender.npy')
+                gender = np.load(gender_f)
+
+                race_f = os.path.join(race_path, bare_f + '_race.npy')
+                race = np.load(race_f)
+
+                age_f = os.path.join(age_path, bare_f + '_age.npy')
+                age = np.load(age_f)
+
+                save_or_not = []
+
+                if len(fer) != 7:
+                    fer = fer[0]
+
+                if tasks['fer'] is not None:
+                    task_ids = tasks['fer']
+                    if np.argmax(fer) in task_ids and fer[np.argmax(fer)] >= 0.50:
+                        save_or_not.append(1)
+                    else:
+                        save_or_not.append(0)
+                if tasks['gender'] is not None:
+                    task_ids = tasks['gender']
+                    if np.argmax(gender) in task_ids and gender[np.argmax(gender)] >= 0.9:
+                        save_or_not.append(1)
+                    else:
+                        save_or_not.append(0)
+                if tasks['race'] is not None:
+                    task_ids = tasks['race']
+                    if np.argmax(race) in task_ids and race[np.argmax(race)] >= 0.5:
+                        save_or_not.append(1)
+                    else:
+                        save_or_not.append(0)
+                if tasks['age'] is not None:
+                    task_ids = tasks['age']
+                    if np.argmax(age) in task_ids:
+                        save_or_not.append(1)
+                    else:
+                        save_or_not.append(0)
+
+                avg = np.mean(save_or_not)
+                if avg >= 1:
+                    noise_arr.append(noise)
+                    i += 1
+
+                # if i > 100:
+                #     break
 
         ''' no normalization is needed, since we want to generate hm'''
+        print(len(noise_arr))
         mean_lbl_arr = np.mean(noise_arr, axis=0)
         reduced_lbl_arr, eigenvalues, eigenvectors = self._func_PCA(noise_arr, pca_accuracy)
         eigenvectors = eigenvectors.T
+        # u, s, vh = np.linalg.svd(np.array(noise_arr).T, full_matrices=True)
 
-        u, s, vh = np.linalg.svd(np.array(noise_arr).T, full_matrices=True)
+        save('pca_obj/_' + name + self._eigenvalues_prefix + str(pca_accuracy), eigenvalues)
+        save('pca_obj/_' + name + self._eigenvectors_prefix + str(pca_accuracy), eigenvectors)
+        save('pca_obj/_' + name + self._meanvector_prefix + str(pca_accuracy), mean_lbl_arr)
 
-        save('pca_obj/_' + task + str(task_id) + self._eigenvalues_prefix + str(pca_accuracy), eigenvalues)
-        save('pca_obj/_' + task + str(task_id) + self._eigenvectors_prefix + str(pca_accuracy), eigenvectors)
-        save('pca_obj/_' + task + str(task_id) + self._meanvector_prefix + str(pca_accuracy), mean_lbl_arr)
+        # save('pca_obj/_' + task + str(task_id) + self._u_prefix + str(pca_accuracy), u)
+        # save('pca_obj/_' + task + str(task_id) + self._s_prefix + str(pca_accuracy), s)
+        # save('pca_obj/_' + task + str(task_id) + self._vt_prefix + str(pca_accuracy), vh)
 
-        save('pca_obj/_' + task + str(task_id) + self._u_prefix + str(pca_accuracy), u)
-        save('pca_obj/_' + task + str(task_id) + self._s_prefix + str(pca_accuracy), s)
-        save('pca_obj/_' + task + str(task_id) + self._vt_prefix + str(pca_accuracy), vh)
-
-    def get_asm(self, task_id, pca_accuracy, num, task, alpha=1.0):
+    def make_single_semantic_noise(self, task_name, pca_accuracy, num, alpha=1.0, vec_percent=1.0):
         noises = []
         for i in range(num):
             eigenvalues = load(
-                'pca_obj/_' + task + str(task_id) + self._eigenvalues_prefix + str(pca_accuracy) + ".npy")
+                'pca_obj/_' + task_name + self._eigenvalues_prefix + str(pca_accuracy) + ".npy")
             eigenvectors = load(
-                'pca_obj/_' + task + str(task_id) + self._eigenvectors_prefix + str(pca_accuracy) + ".npy")
-            meanvector = load('pca_obj/_' + task + str(task_id) + self._meanvector_prefix + str(pca_accuracy) + ".npy")
+                'pca_obj/_' + task_name + self._eigenvectors_prefix + str(pca_accuracy) + ".npy")
+            meanvector = load('pca_obj/_' + task_name + self._meanvector_prefix + str(pca_accuracy) + ".npy")
 
             sample = np.round(np.random.RandomState(i * 100).randn(1, 512), decimals=3)[0]
 
+            eigenvectors = eigenvectors[:, :int(vec_percent*len(eigenvalues))]
+            eigenvalues = eigenvalues[:int(vec_percent*len(eigenvalues))]
+
             b_vector_p = self._calculate_b_vector(sample, True, eigenvalues, eigenvectors, meanvector)
             out = alpha * meanvector + np.dot(eigenvectors, b_vector_p)
-            noises.append(np.expand_dims(sample, 0))
+            # noises.append(np.expand_dims(sample, 0))
             noises.append(np.expand_dims(out, 0))
         return noises
 
@@ -240,11 +269,13 @@ class ASM:
 
         return noises
 
-    def get_asm_b(self, task_id, pca_accuracy, num, task, alpha=1.0):
+    def get_asm_b(self, task_name, pca_accuracy, num, alpha=1.0):
         noises = []
-        eigenvalues = load('pca_obj/_' + task + str(task_id) + self._eigenvalues_prefix + str(pca_accuracy) + ".npy")
-        eigenvectors = load('pca_obj/_' + task + str(task_id) + self._eigenvectors_prefix + str(pca_accuracy) + ".npy")
-        meanvector = load('pca_obj/_' + task + str(task_id) + self._meanvector_prefix + str(pca_accuracy) + ".npy")
+        eigenvalues = load(
+            'pca_obj/_' + task_name + self._eigenvalues_prefix + str(pca_accuracy) + ".npy")
+        eigenvectors = load(
+            'pca_obj/_' + task_name + self._eigenvectors_prefix + str(pca_accuracy) + ".npy")
+        meanvector = load('pca_obj/_' + task_name + self._meanvector_prefix + str(pca_accuracy) + ".npy")
 
         for i in range(num):
             sample = np.round(np.random.RandomState(i * 100).randn(1, 512), decimals=3)[0]
@@ -265,17 +296,17 @@ class ASM:
                     else:
                         w.append(0.0)
                         w_p.append(1.0)
-                out_w = alpha * meanvector + np.dot(eigenvectors, b_vector_p * np.array(w))
-                # out_w_p = alpha * meanvector + np.dot(eigenvectors,  b_vector_p * np.array(w_p))
-                out_w_n = 0.3 * sample + 0.7 * out_w
+                # out_w = alpha * meanvector + np.dot(eigenvectors, b_vector_p * np.array(w))
+                out_w_p = alpha * meanvector + np.dot(eigenvectors, b_vector_p * np.array(w_p))
+                # out_w_n = 0.3 * sample + 0.7 * out_w
                 # noises.append(np.expand_dims(out_w, 0))
-                noises.append(np.expand_dims(out_w_n, 0))
-                # noises.append(np.expand_dims(out_w_p, 0))
-            # for k in range(10):
-            #     b_vector_p_rand = np.random.normal(loc=np.mean(b_vector_p), scale=0.2, size=b_vector_p.shape)
-            #     b_vector_p_new = b_vector_p * np.array(w) + b_vector_p_rand * np.array(w)
-            #     out_new = alpha * meanvector + np.dot(eigenvectors, b_vector_p_new)
-            #     noises.append(np.expand_dims(out_new, 0))
+                # noises.append(np.expand_dims(out_w_n, 0))
+                noises.append(np.expand_dims(out_w_p, 0))
+        # for k in range(10):
+        #     b_vector_p_rand = np.random.normal(loc=np.mean(b_vector_p), scale=0.2, size=b_vector_p.shape)
+        #     b_vector_p_new = b_vector_p * np.array(w) + b_vector_p_rand * np.array(w)
+        #     out_new = alpha * meanvector + np.dot(eigenvectors, b_vector_p_new)
+        #     noises.append(np.expand_dims(out_new, 0))
         return noises
 
     def get_asm_svd(self, task_id, pca_accuracy, num, task, alpha=1.0):
@@ -305,7 +336,7 @@ class ASM:
             noises.append(np.expand_dims(sample, 0))
             noises.append(np.expand_dims(out, 0))
             # noises.append(np.expand_dims(meanvector, 0))
-            noises.append(np.expand_dims(meanvector-out, 0))
+            noises.append(np.expand_dims(meanvector - out, 0))
             # noises.append(np.expand_dims(out-meanvector, 0))
 
             # out_0 = (u[:, :num_eigen] @ np.diag(s)[:num_eigen, :num_eigen] @ vh[:num_eigen, :])
@@ -314,8 +345,6 @@ class ASM:
             #     out_1 = 0.6 * sample + 0.4 * o_0
             #     noises.append(np.expand_dims(o_0, 0))
             #     noises.append(np.expand_dims(out_1, 0))
-
-
 
             # # SVD
             # n_fact = 1
@@ -348,7 +377,6 @@ class ASM:
 
     def _calculate_b_vector(self, sample, correction, eigenvalues, eigenvectors, meanvector):
         tmp1 = sample - meanvector
-        # tmp1 = meanvector - sample
         b_vector = np.dot(eigenvectors.T, tmp1)
         if correction:
             i = 0
