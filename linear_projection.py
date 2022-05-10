@@ -119,8 +119,8 @@ class LinearProjection:
                 if avg >= 1:
                     noise_arr.append(noise)
                     i += 1
-
-                # if i > 100:
+                #
+                # if i > 1000:
                 #     break
 
         ''' no normalization is needed, since we want to generate hm'''

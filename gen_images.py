@@ -455,15 +455,26 @@ def create_lda_exp(task_0, task_id_0, task_1, task_id_1):
 
 def create_pca(pca_accuracy, tasks, name):
     lin_obj = LinearProjection()
-    lin_obj.create_pca_from_npy(
-        noise_path=f'{FolderStructures.prefix}zz_productin/new_angry_diverse/noise_vectors',
-        fer_path=f'{FolderStructures.prefix}zz_productin/new_angry_diverse/feature_vectors',
-        race_path=f'{FolderStructures.prefix}zz_productin/new_angry_diverse/race_extraction',
-        gender_path=f'{FolderStructures.prefix}zz_productin/new_angry_diverse/gender_extraction',
-        age_path=f'{FolderStructures.prefix}zz_productin/new_angry_diverse/age_extraction',
-        tasks=tasks,
-        name=name,
-        pca_accuracy=pca_accuracy)
+    if tasks['fer'] is not None and Expression_codes.HAPPY in tasks['fer']:
+        lin_obj.create_pca_from_npy(
+            noise_path=f'{FolderStructures.prefix}zz_productin/100K_normal/noise_vectors',
+            fer_path=f'{FolderStructures.prefix}zz_productin/100K_normal/feature_vectors',
+            race_path=f'{FolderStructures.prefix}zz_productin/100K_normal/race_extraction',
+            gender_path=f'{FolderStructures.prefix}zz_productin/100K_normal/gender_extraction',
+            age_path=f'{FolderStructures.prefix}zz_productin/100K_normal/age_extraction',
+            tasks=tasks,
+            name=name,
+            pca_accuracy=pca_accuracy)
+    else:
+        lin_obj.create_pca_from_npy(
+            noise_path=f'{FolderStructures.prefix}zz_productin/new_angry_diverse/noise_vectors',
+            fer_path=f'{FolderStructures.prefix}zz_productin/new_angry_diverse/feature_vectors',
+            race_path=f'{FolderStructures.prefix}zz_productin/new_angry_diverse/race_extraction',
+            gender_path=f'{FolderStructures.prefix}zz_productin/new_angry_diverse/gender_extraction',
+            age_path=f'{FolderStructures.prefix}zz_productin/new_angry_diverse/age_extraction',
+            tasks=tasks,
+            name=name,
+            pca_accuracy=pca_accuracy)
 
 
 "============================================================================================="
@@ -564,6 +575,53 @@ if __name__ == "__main__":
     #                   'race': [Race_codes.WHITE],
     #                   'age': None},
     #            name='ANGRY_WHITE')
+    '''     ANGRY_CHILD'''
+    # create_pca(pca_accuracy=99,
+    #            tasks={'fer': [Expression_codes.ANGER],
+    #                   'gender': None,
+    #                   'race': None,
+    #                   'age': [Age_codes.CHILD]},
+    #            name='ANGRY_CHILD')
+
+    '''     ANGRY_OLD'''
+    # create_pca(pca_accuracy=99,
+    #            tasks={'fer': [Expression_codes.ANGER],
+    #                   'gender': None,
+    #                   'race': None,
+    #                   'age': [Age_codes.OLD]},
+    #            name='ANGRY_OLD')
+
+    '''     HAPPY_MALE'''
+    # create_pca(pca_accuracy=99,
+    #            tasks={'fer': [Expression_codes.HAPPY],
+    #                   'gender': [Gender_codes.MALE],
+    #                   'race': None,
+    #                   'age': None},
+    #            name='HAPPY_MALE')
+
+    '''     HAPPY_FEMALE'''
+    # create_pca(pca_accuracy=99,
+    #            tasks={'fer': [Expression_codes.HAPPY],
+    #                   'gender': [Gender_codes.FEMALE],
+    #                   'race': None,
+    #                   'age': None},
+    #            name='HAPPY_FEMALE')
+
+    '''     FEMALE'''
+    # create_pca(pca_accuracy=99,
+    #            tasks={'fer': None,
+    #                   'gender': [Gender_codes.FEMALE],
+    #                   'race': None,
+    #                   'age': None},
+    #            name='FEMALE')
+
+    '''     MALE'''
+    # create_pca(pca_accuracy=99,
+    #            tasks={'fer': None,
+    #                   'gender': [Gender_codes.MALE],
+    #                   'race': None,
+    #                   'age': None},
+    #            name='MALE')
     '''======================================'''
 
     '''Generating semantic-based images'''
@@ -574,18 +632,22 @@ if __name__ == "__main__":
     # noise_am = lin_obj.make_single_semantic_noise(task_name='ANGRY_MALE', pca_accuracy=99, num=10, vec_percent=0.25)
     # noise_aw = lin_obj.make_single_semantic_noise(task_name='ANGRY_WHITE', pca_accuracy=99, num=10, vec_percent=0.25)
     # noise_ab = lin_obj.make_single_semantic_noise(task_name='ANGRY_BLACK', pca_accuracy=99, num=10, vec_percent=0.55)
+    # noise_ach = lin_obj.make_single_semantic_noise(task_name='ANGRY_CHILD', pca_accuracy=99, num=10, vec_percent=0.20)
+    # noise_ao = lin_obj.make_single_semantic_noise(task_name='ANGRY_OLD', pca_accuracy=99, num=10, vec_percent=0.35)
+    # noise_hm = lin_obj.make_single_semantic_noise(task_name='HAPPY_MALE', pca_accuracy=99, num=10, vec_percent=0.15)
 
-    # noise = list(np.mean([noise_0, noise_1], axis=0))
+    # noise = list(np.array(noise_ao) + np.array(noise_aw))
+    # noise = list(np.mean([noise_ao, noise_ach], axis=0))
     '''         generating images:              '''
-    # generate_with_noise(network_pkl=FolderStructures.styleGan_weight_path,
-    #                     noises=noise_ab,
-    #                     fer_detection=False,
-    #                     truncation_psi=0.7,
-    #                     noise_mode='const',  # 'const', 'random', 'none'],
-    #                     outdir=FolderStructures.prefix,
-    #                     translate=parse_vec2('0,0'),
-    #                     rotate=0,
-    #                     class_idx=0)
+    generate_with_noise(network_pkl=FolderStructures.styleGan_weight_path,
+                        noises=noise,
+                        fer_detection=False,
+                        truncation_psi=0.7,
+                        noise_mode='const',  # 'const', 'random', 'none'],
+                        outdir=FolderStructures.prefix,
+                        translate=parse_vec2('0,0'),
+                        rotate=0,
+                        class_idx=0)
     '''======================================'''
 
     # noise = asm.get_asm_svd(task_id=6, pca_accuracy=99, num=20, task='fer', alpha=1.0)
