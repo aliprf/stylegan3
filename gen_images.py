@@ -534,21 +534,21 @@ if __name__ == "__main__":
     '''======================================'''
 
     '''creating PCA'''
-    '''ANGRY_FEMALE'''
+    '''     ANGRY_FEMALE'''
     # create_pca(pca_accuracy=99,
     #            tasks={'fer': [Expression_codes.ANGER],
     #                   'gender': [Gender_codes.FEMALE],
     #                   'race': None,
     #                   'age': None},
     #            name='ANGRY_FEMALE')
-    # '''ANGRY_MALE'''
+    '''     ANGRY_MALE'''
     # create_pca(pca_accuracy=99,
     #            tasks={'fer': [Expression_codes.ANGER],
     #                   'gender': [Gender_codes.MALE],
     #                   'race': None,
     #                   'age': None},
     #            name='ANGRY_MALE')
-    '''ANGRY_BLACK'''
+    '''     ANGRY_BLACK'''
     # create_pca(pca_accuracy=99,
     #            tasks={'fer': [Expression_codes.ANGER],
     #                   'gender': None,
@@ -557,7 +557,7 @@ if __name__ == "__main__":
     #                            Race_codes.MID_EST],
     #                   'age': None},
     #            name='ANGRY_BLACK')
-    # '''ANGRY_WHITE'''
+    '''     ANGRY_WHITE'''
     # create_pca(pca_accuracy=99,
     #            tasks={'fer': [Expression_codes.ANGER],
     #                   'gender': None,
@@ -569,23 +569,23 @@ if __name__ == "__main__":
     '''Generating semantic-based images'''
     lin_obj = LinearProjection()
 
-    # creating single-semantic noises
+    '''         creating single-semantic noises     '''
     # noise_af = lin_obj.make_single_semantic_noise(task_name='ANGRY_FEMALE', pca_accuracy=99, num=10, vec_percent=0.5)
     # noise_am = lin_obj.make_single_semantic_noise(task_name='ANGRY_MALE', pca_accuracy=99, num=10, vec_percent=0.25)
     # noise_aw = lin_obj.make_single_semantic_noise(task_name='ANGRY_WHITE', pca_accuracy=99, num=10, vec_percent=0.25)
-    noise_ab = lin_obj.make_single_semantic_noise(task_name='ANGRY_BLACK', pca_accuracy=99, num=10, vec_percent=0.55)
-    #
+    # noise_ab = lin_obj.make_single_semantic_noise(task_name='ANGRY_BLACK', pca_accuracy=99, num=10, vec_percent=0.55)
+
     # noise = list(np.mean([noise_0, noise_1], axis=0))
-    # generating images:
-    generate_with_noise(network_pkl=FolderStructures.styleGan_weight_path,
-                        noises=noise_ab,
-                        fer_detection=False,
-                        truncation_psi=0.7,
-                        noise_mode='const',  # 'const', 'random', 'none'],
-                        outdir=FolderStructures.prefix,
-                        translate=parse_vec2('0,0'),
-                        rotate=0,
-                        class_idx=0)
+    '''         generating images:              '''
+    # generate_with_noise(network_pkl=FolderStructures.styleGan_weight_path,
+    #                     noises=noise_ab,
+    #                     fer_detection=False,
+    #                     truncation_psi=0.7,
+    #                     noise_mode='const',  # 'const', 'random', 'none'],
+    #                     outdir=FolderStructures.prefix,
+    #                     translate=parse_vec2('0,0'),
+    #                     rotate=0,
+    #                     class_idx=0)
     '''======================================'''
 
     # noise = asm.get_asm_svd(task_id=6, pca_accuracy=99, num=20, task='fer', alpha=1.0)
