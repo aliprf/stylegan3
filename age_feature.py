@@ -8,9 +8,10 @@ from scipy import interpolate, linalg
 
 
 class AgeExtraction:
-    def __init__(self, model_path, proto_path):
+    def __init__(self, model_path=None, proto_path=None):
         self._model_mean_values = (78.4263377603, 87.7689143744, 114.895847746)
-        self._model = cv2.dnn.readNetFromCaffe(proto_path, model_path)
+        if model_path is not None and proto_path is not None:
+            self._model = cv2.dnn.readNetFromCaffe(proto_path, model_path)
 
     def predict_single_path(self, img_path):
         image = cv2.imread(img_path)

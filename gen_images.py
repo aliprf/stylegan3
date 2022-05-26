@@ -221,7 +221,7 @@ def generate_with_interpolation_function(network_pkl: str,
 
 def generate_with_noise(network_pkl: str,
                         noises,
-                        fer_detection:bool,
+                        fer_detection: bool,
                         truncation_psi: float,
                         noise_mode: str,
                         outdir: str,
@@ -545,6 +545,13 @@ if __name__ == "__main__":
     '''======================================'''
 
     '''creating PCA'''
+    '''     ANGRY'''
+    # create_pca(pca_accuracy=99,
+    #            tasks={'fer': [Expression_codes.ANGER],
+    #                   'gender': None,
+    #                   'race': None,
+    #                   'age': None},
+    #            name='ANGRY')
     '''     ANGRY_FEMALE'''
     # create_pca(pca_accuracy=99,
     #            tasks={'fer': [Expression_codes.ANGER],
@@ -622,32 +629,85 @@ if __name__ == "__main__":
     #                   'race': None,
     #                   'age': None},
     #            name='MALE')
+    '''     BLACK'''
+    # create_pca(pca_accuracy=99,
+    #            tasks={'fer': None,
+    #                   'gender': None,
+    #                   'race': [Race_codes.BLACK],
+    #                   'age': None},
+    #            name='BLACK')
+    '''     WHITE'''
+    # create_pca(pca_accuracy=99,
+    #            tasks={'fer': None,
+    #                   'gender': None,
+    #                   'race': [Race_codes.WHITE],
+    #                   'age': None},
+    #            name='WHITE')
+    '''=============== Clustered PCA ======================='''
+    '''     ANGRY'''
+    # create_pca(pca_accuracy=99,
+    #            tasks={'fer': [Expression_codes.ANGER],
+    #                   'gender': None,
+    #                   'race': None,
+    #                   'age': None},
+    #            name='ANGRY')
+
     '''======================================'''
 
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     '''Generating semantic-based images'''
     lin_obj = LinearProjection()
 
     '''         creating single-semantic noises     '''
     # noise_af = lin_obj.make_single_semantic_noise(task_name='ANGRY_FEMALE', pca_accuracy=99, num=10, vec_percent=0.5)
-    # noise_am = lin_obj.make_single_semantic_noise(task_name='ANGRY_MALE', pca_accuracy=99, num=10, vec_percent=0.25)
-    # noise_aw = lin_obj.make_single_semantic_noise(task_name='ANGRY_WHITE', pca_accuracy=99, num=10, vec_percent=0.25)
-    # noise_ab = lin_obj.make_single_semantic_noise(task_name='ANGRY_BLACK', pca_accuracy=99, num=10, vec_percent=0.55)
-    # noise_ach = lin_obj.make_single_semantic_noise(task_name='ANGRY_CHILD', pca_accuracy=99, num=10, vec_percent=0.20)
-    # noise_ao = lin_obj.make_single_semantic_noise(task_name='ANGRY_OLD', pca_accuracy=99, num=10, vec_percent=0.35)
-    # noise_hm = lin_obj.make_single_semantic_noise(task_name='HAPPY_MALE', pca_accuracy=99, num=10, vec_percent=0.15)
+    # noise_am = lin_obj.make_single_semantic_noise(task_name='ANGRY_MALE', pca_accuracy=99, num=30, vec_percent=0.7)
+    # noise_aw = lin_obj.make_single_semantic_noise(task_name='ANGRY_WHITE', pca_accuracy=99, num=25, vec_percent=0.9)
+    # noise_ab = lin_obj.make_single_semantic_noise(task_name='ANGRY_BLACK', pca_accuracy=99, num=30, vec_percent=0.99)
+    # noise_ach = lin_obj.make_single_semantic_noise(task_name='ANGRY_CHILD', pca_accuracy=99, num=30, vec_percent=0.20)
+    # noise_ao = lin_obj.make_single_semantic_noise(task_name='ANGRY_OLD', pca_accuracy=99, num=30, vec_percent=0.35)
+    # noise_hm = lin_obj.make_single_semantic_noise(task_name='HAPPY_MALE', pca_accuracy=99, num=30, vec_percent=0.15)
+
+    # noise_A = lin_obj.make_single_semantic_noise_n(task_name='FEMALE', pca_accuracy=99,
+    #                                                num=30, vec_percent=0.1, alpha=1.0)
+
+    # noise = lin_obj.make_compound_semantic_noise(data=[{'t_n': 'FEMALE', 'p_ac': 99, 'sem_p': 0.1, 'id_p': 0.5},
+    #                                                    {'t_n': 'ANGRY', 'p_ac': 99, 'sem_p': 0.1, 'id_p': 0.5},
+    #                                                    ],
+    #                                              num=25
+    #                                              )
+
+    # noise_A = lin_obj.make_single_semantic_noise(task_name='ANGRY', pca_accuracy=99, num=30, vec_percent=0.1)
 
     # noise = list(np.array(noise_ao) + np.array(noise_aw))
     # noise = list(np.mean([noise_ao, noise_ach], axis=0))
+
+    '''         compound semantic'''
+    # noise = lin_obj.make_compound_semantic_noise(data=[{'t_n': 'ANGRY', 'p_ac': 99, 'vec_p': 0.1},
+    #                                                    {'t_n': 'FEMALE', 'p_ac': 99, 'vec_p': 0.5},
+    #                                                    ],
+    #                                              num=15,
+    #                                              vec_percent=0.99  # DON't reduce this
+    #                                              )
+    #
+    # noise = lin_obj.make_compound_semantic_noise(data=[{'t_n': 'ANGRY_BLACK', 'p_ac': 99, 'vec_p': 0.99},
+    #                                                    {'t_n': 'FEMALE', 'p_ac': 99, 'vec_p': 0.99},
+    #                                                    ],
+    #                                              num=15,
+    #                                              vec_percent=0.99  # DON't reduce this
+    #                                              )
+
+    '''======================================'''
+
     '''         generating images:              '''
-    generate_with_noise(network_pkl=FolderStructures.styleGan_weight_path,
-                        noises=noise,
-                        fer_detection=False,
-                        truncation_psi=0.7,
-                        noise_mode='const',  # 'const', 'random', 'none'],
-                        outdir=FolderStructures.prefix,
-                        translate=parse_vec2('0,0'),
-                        rotate=0,
-                        class_idx=0)
+    # generate_with_noise(network_pkl=FolderStructures.styleGan_weight_path,
+    #                     noises=noise,
+    #                     fer_detection=False,
+    #                     truncation_psi=0.7,
+    #                     noise_mode='const',  # 'const', 'random', 'none'],
+    #                     outdir=FolderStructures.prefix,
+    #                     translate=parse_vec2('0,0'),
+    #                     rotate=0,
+    #                     class_idx=0)
     '''======================================'''
 
     # noise = asm.get_asm_svd(task_id=6, pca_accuracy=99, num=20, task='fer', alpha=1.0)
@@ -665,14 +725,23 @@ if __name__ == "__main__":
 
     #
     ''' creating 5k dataset'''
-    # fer_class = FER()
-    # fer_class.create_total_cvs(img_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/100K_normal/images/',
-    #                            fer_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/100K_normal/feature_vectors',
-    #                            race_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/100K_normal/race_extraction/',
-    #                            age_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/100K_normal/age_extraction/',
-    #                            gender_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/100K_normal/gender_extraction/',
-    #                            cvs_file='./happy.csv')
-    # #
+    fer_class = FER()
+    # fer_class.create_total_cvs_raw(
+    #     img_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/images/',
+    #     fer_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/feature_vectors',
+    #     race_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/race_extraction/',
+    #     age_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/age_extraction/',
+    #     gender_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/gender_extraction/',
+    #     cvs_file='./angry_50k.csv')
+
+    # fer_class.create_total_cvs_raw(
+    #     img_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/100K_normal/images/',
+    #     fer_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/100K_normal/feature_vectors',
+    #     race_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/100K_normal/race_extraction/',
+    #     age_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/100K_normal/age_extraction/',
+    #     gender_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/100K_normal/gender_extraction/',
+    #     cvs_file='./happy_100k.csv')
+
     # fer_class.create_total_cvs(img_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/images/',
     #                            fer_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/feature_vectors',
     #                            race_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/race_extraction/',
@@ -680,6 +749,44 @@ if __name__ == "__main__":
     #                            gender_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/gender_extraction/',
     #                            cvs_file='./angry.csv')
 
+    # fer_class.create_total_cvs(img_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/100K_normal/images/',
+    #                            fer_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/100K_normal/feature_vectors',
+    #                            race_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/100K_normal/race_extraction/',
+    #                            age_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/100K_normal/age_extraction/',
+    #                            gender_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/100K_normal/gender_extraction/',
+    #                            cvs_file='./happy.csv')
+    prefix = f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/00_production_item/'
+    '''         copy happy'''
+    # fer_class.copy_final_images(cvs_file=prefix + '0_final_happy.csv',
+    #                             s_img_folder=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/100K_normal/images/',
+    #                             d_img_folder=prefix + 'happy_images/',
+    #                             )
+    '''         copy Angry'''
+    # fer_class.copy_final_images(cvs_file=prefix + '0_final_angry.csv',
+    #                             s_img_folder=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/50K_moreAngry/images/',
+    #                             d_img_folder=prefix + 'angry_images/',
+    #                             )
+    # #
+    '''filter with query'''
+    fer_class.query_images(cvs_query_file=prefix + './angry_50k.csv',
+                           query={
+                               # 'fer': [Expression_codes.ANGER, Expression_codes.NEUTRAL],
+                               'fer': [Expression_codes.HAPPY],
+                               'gender': [Gender_codes.MALE],
+                               'race': [Race_codes.WHITE],
+                               'age': [Age_codes.YOUTH, Age_codes.MIDDLE, Age_codes.OLD]},
+                           final_csv='HAPPY_MALE_WHITE.csv'
+                           )
+
+    '''         make the histograms'''
+    # image	expression	age	race gender
+    # fer_class.create_histogram_csv(cvs_file=prefix + 'angry.csv', task='gender', file_name='Angry_gender', f_index=4)
+    # fer_class.create_histogram_csv(cvs_file=prefix + 'happy.csv', task='gender', file_name='Happy_gender', f_index=4)
+    # fer_class.create_histogram_csv(cvs_file=prefix + '0_final_angry.csv', task='age', file_name='0_A_age', f_index=2)
+    # fer_class.create_histogram_csv(cvs_file=prefix + '0_final_angry.csv', task='race', file_name='0_A_race', f_index=3)
+    # fer_class.create_histogram_csv(cvs_file=prefix + '0_final_happy.csv', task='age', file_name='0_H_age', f_index=2)
+    # fer_class.create_histogram_csv(cvs_file=prefix + '0_final_happy.csv', task='race', file_name='0_H_race', f_index=3)
+    '''====='''
     # # noises = fer_class.create_noise(h5_addresses=['./encoder.h5', './decoder.h5'], exp_id=6, num=50)
     # fer_ana = AnalyzeFer(exp_path=None, noise_path='')
     # noises = fer_ana.create_fer_noises(indices_path='./indices.npy', exp_stat_path='./p_stat.npy')

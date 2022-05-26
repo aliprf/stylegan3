@@ -30,16 +30,16 @@ class PreTrainedModels:
 
 
 class Race_codes:
-    ASIAN: int = 0,
-    INDIAN: int = 1,
-    BLACK: int = 2,
-    WHITE: int = 3,
-    MID_EST: int = 4,
-    LATINO: int = 5,
+    ASIAN: int = 0
+    INDIAN: int = 1
+    BLACK: int = 2
+    WHITE: int = 3
+    MID_EST: int = 4
+    LATINO: int = 5
 
 
 class Gender_codes:
-    FEMALE: int = 0,
+    FEMALE: int = 0
     MALE: int = 1
 
 

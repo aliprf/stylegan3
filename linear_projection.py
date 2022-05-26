@@ -12,6 +12,10 @@ from scipy.linalg import svd
 
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis as QDA
+from sklearn.metrics.pairwise import cosine_similarity
+from scipy import spatial
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 class LinearProjection:
@@ -71,7 +75,7 @@ class LinearProjection:
                 bare_f = str(file).split('.')[0]
                 noise_f = os.path.join(noise_path, file)
                 noise = np.load(noise_f)[0]
-                noise = np.clip(noise, -1.5, +1.5)
+                noise = np.clip(noise, -2.5, +2.5)
 
                 fer_f = os.path.join(fer_path, 'exp_' + bare_f + '.npy')
                 fer = np.load(fer_f)
@@ -92,7 +96,7 @@ class LinearProjection:
 
                 if tasks['fer'] is not None:
                     task_ids = tasks['fer']
-                    if np.argmax(fer) in task_ids and fer[np.argmax(fer)] >= 0.50:
+                    if np.argmax(fer) in task_ids and fer[np.argmax(fer)] >= 0.4:
                         save_or_not.append(1)
                     else:
                         save_or_not.append(0)
@@ -110,7 +114,7 @@ class LinearProjection:
                         save_or_not.append(0)
                 if tasks['age'] is not None:
                     task_ids = tasks['age']
-                    if np.argmax(age) in task_ids:
+                    if np.argmax(age) in task_ids and age[np.argmax(age)] >= 0.5:
                         save_or_not.append(1)
                     else:
                         save_or_not.append(0)
@@ -120,41 +124,520 @@ class LinearProjection:
                     noise_arr.append(noise)
                     i += 1
                 #
-                # if i > 1000:
+                # if i > 100:
                 #     break
+
+        '''svd'''
+        noise_arr = np.array(noise_arr)
+        u, s, vh = np.linalg.svd(noise_arr.T, full_matrices=True)
+
+        '''PCA via SVD:'''
+        # B = noise_arr - mean_lbl_arr
+        # U, S, V = np.linalg.svd(B.T/ np.sqrt(len(noise_arr)), full_matrices=True)
+        save('pca_obj/_' + name + self._u_prefix + str(pca_accuracy), u)
+        save('pca_obj/_' + name + self._s_prefix + str(pca_accuracy), s)
+        save('pca_obj/_' + name + self._vt_prefix + str(pca_accuracy), vh)
 
         ''' no normalization is needed, since we want to generate hm'''
         print(len(noise_arr))
         mean_lbl_arr = np.mean(noise_arr, axis=0)
         reduced_lbl_arr, eigenvalues, eigenvectors = self._func_PCA(noise_arr, pca_accuracy)
         eigenvectors = eigenvectors.T
-        # u, s, vh = np.linalg.svd(np.array(noise_arr).T, full_matrices=True)
-
         save('pca_obj/_' + name + self._eigenvalues_prefix + str(pca_accuracy), eigenvalues)
         save('pca_obj/_' + name + self._eigenvectors_prefix + str(pca_accuracy), eigenvectors)
         save('pca_obj/_' + name + self._meanvector_prefix + str(pca_accuracy), mean_lbl_arr)
 
-        # save('pca_obj/_' + task + str(task_id) + self._u_prefix + str(pca_accuracy), u)
-        # save('pca_obj/_' + task + str(task_id) + self._s_prefix + str(pca_accuracy), s)
-        # save('pca_obj/_' + task + str(task_id) + self._vt_prefix + str(pca_accuracy), vh)
+    def make_single_semantic_noise_n(self, task_name, pca_accuracy, num, alpha=1.0, vec_percent=1.0):
+        noises = []
+        eigenvalues = load(
+            'pca_obj/_' + task_name + self._eigenvalues_prefix + str(pca_accuracy) + ".npy")
+        eigenvectors = load(
+            'pca_obj/_' + task_name + self._eigenvectors_prefix + str(pca_accuracy) + ".npy")
+        meanvector = load('pca_obj/_' + task_name + self._meanvector_prefix + str(pca_accuracy) + ".npy")
+        #
+        # u = load('pca_obj/_' + task_name + self._u_prefix + str(pca_accuracy) + ".npy")
+        # s = load('pca_obj/_' + task_name + self._s_prefix + str(pca_accuracy) + ".npy")
+        # vh = load('pca_obj/_' + task_name + self._vt_prefix + str(pca_accuracy) + ".npy")
+        ''''''
+        k = int(vec_percent * len(eigenvalues))
+
+        eigenvalues_sem = eigenvalues[:k]
+        eigenvectors_sem = eigenvectors[:, :k]
+
+        eigenvalues_id = eigenvalues[k:]
+        eigenvectors_id = eigenvectors[:, k:]
+        #
+        # eigenvalues_id = eigenvalues[:(1-k)]
+        # eigenvectors_id = eigenvectors[:, :(1-k)]
+
+        for i in range(num):
+            sample = np.round(np.random.RandomState(i).randn(1, 512), decimals=3)[0]
+            b_vector_p = self._calculate_b_vector(sample, True, eigenvalues, eigenvectors, meanvector)
+            b_vector_p_sem = self._calculate_b_vector(sample, True, eigenvalues_sem, eigenvectors_sem, meanvector)
+            b_vector_p_id = self._calculate_b_vector(sample, True, eigenvalues_id, eigenvectors_id, meanvector)
+
+            out = alpha * meanvector + np.dot(eigenvectors, b_vector_p)
+            out_sem = (alpha * meanvector + np.dot(eigenvectors_sem, b_vector_p_sem))
+            out_id = alpha * meanvector + np.dot(eigenvectors_id, b_vector_p_id)
+
+            noises.append(np.expand_dims(sample, 0))
+            # noises.append(np.expand_dims(out, 0))
+            noises.append(np.expand_dims(out_sem, 0))
+            noises.append(np.expand_dims(out_id, 0))
+
+            noises.append(np.expand_dims(0.5 * out_sem + 0.5 * out_id, 0))
+
+            # '''SVD'''
+            # u, s, vh = np.linalg.svd(np.array(np.expand_dims(sample, 0)).T, full_matrices=True)
+            # noises.append(np.expand_dims(u.diagonal(), 0))
+
+            # for j in range(5):
+            #     out_svd = u[j:j+1, :]
+            #     noises.append(out_svd)
+
+            # # out_svd = np.mean((u[:, :k] @ np.diag(s)[:k, :k] @ vh[:k, :])[:, :3], -1)
+            # # out_svd = u[:, 6:7] @ np.diag(s)[:1, :1]
+            # out_svd = u[:, :1] @ eigenvalues[:1]
+            # noises.append(np.expand_dims(out_svd, 0))
+            # # for j in range(k):
+            # #     out_svd = u[:, j:j+1] @ eigenvalues[j:j+1]
+            # #     noises.append(np.expand_dims(out_svd, 0))
+        return noises
 
     def make_single_semantic_noise(self, task_name, pca_accuracy, num, alpha=1.0, vec_percent=1.0):
         noises = []
+        eigenvalues = load(
+            'pca_obj/_' + task_name + self._eigenvalues_prefix + str(pca_accuracy) + ".npy")
+        eigenvectors = load(
+            'pca_obj/_' + task_name + self._eigenvectors_prefix + str(pca_accuracy) + ".npy")
+        meanvector = load('pca_obj/_' + task_name + self._meanvector_prefix + str(pca_accuracy) + ".npy")
+        #
+        u = load('pca_obj/_' + task_name + self._u_prefix + str(pca_accuracy) + ".npy")
+        s = load('pca_obj/_' + task_name + self._s_prefix + str(pca_accuracy) + ".npy")
+        vh = load('pca_obj/_' + task_name + self._vt_prefix + str(pca_accuracy) + ".npy")
+        ''''''
+        eigenvectors = eigenvectors[:, :int(vec_percent * len(eigenvalues))]
+        eigenvalues = eigenvalues[:int(vec_percent * len(eigenvalues))]
+
+        k = int(vec_percent * len(eigenvalues))
+
         for i in range(num):
-            eigenvalues = load(
-                'pca_obj/_' + task_name + self._eigenvalues_prefix + str(pca_accuracy) + ".npy")
-            eigenvectors = load(
-                'pca_obj/_' + task_name + self._eigenvectors_prefix + str(pca_accuracy) + ".npy")
-            meanvector = load('pca_obj/_' + task_name + self._meanvector_prefix + str(pca_accuracy) + ".npy")
-
-            sample = np.round(np.random.RandomState(i * 100).randn(1, 512), decimals=3)[0]
-
-            eigenvectors = eigenvectors[:, :int(vec_percent*len(eigenvalues))]
-            eigenvalues = eigenvalues[:int(vec_percent*len(eigenvalues))]
-
+            sample = np.round(np.random.RandomState(i).randn(1, 512), decimals=3)[0]
             b_vector_p = self._calculate_b_vector(sample, True, eigenvalues, eigenvectors, meanvector)
             out = alpha * meanvector + np.dot(eigenvectors, b_vector_p)
-            # noises.append(np.expand_dims(sample, 0))
+            noises.append(np.expand_dims(sample, 0))
+            noises.append(np.expand_dims(out, 0))
+
+            # '''SVD'''
+            # u, s, vh = np.linalg.svd(np.array(np.expand_dims(sample, 0)).T, full_matrices=True)
+            # noises.append(np.expand_dims(u.diagonal(), 0))
+
+            # for j in range(5):
+            #     out_svd = u[j:j+1, :]
+            #     noises.append(out_svd)
+
+            # # out_svd = np.mean((u[:, :k] @ np.diag(s)[:k, :k] @ vh[:k, :])[:, :3], -1)
+            # # out_svd = u[:, 6:7] @ np.diag(s)[:1, :1]
+            # out_svd = u[:, :1] @ eigenvalues[:1]
+            # noises.append(np.expand_dims(out_svd, 0))
+            # # for j in range(k):
+            # #     out_svd = u[:, j:j+1] @ eigenvalues[j:j+1]
+            # #     noises.append(np.expand_dims(out_svd, 0))
+        return noises
+
+    def make_compound_semantic_noise(self, data, num, pca_accuracy=99, alpha=1.0):
+        eigenvalues_arr = []
+        eigenvectors_arr = []
+        meanvector_arr = []
+
+        for i in range(len(data)):
+            eigenvalues = load(
+                'pca_obj/_' + data[i]['t_n'] + self._eigenvalues_prefix + str(data[i]['p_ac']) + ".npy")
+            eigenvectors = load(
+                'pca_obj/_' + data[i]['t_n'] + self._eigenvectors_prefix + str(data[i]['p_ac']) + ".npy")
+            meanvector_arr.append(load(
+                'pca_obj/_' + data[i]['t_n'] + self._meanvector_prefix + str(data[i]['p_ac']) + ".npy"))
+            eigenvectors_arr.append(eigenvectors)
+            eigenvalues_arr.append(eigenvalues)
+        '''calculate Mean'''
+        sem_p_0 = int(data[0]['sem_p'] * len(eigenvalues_arr[0]))
+        sem_p_1 = int(data[1]['sem_p'] * len(eigenvalues_arr[1]))
+        id_p_0 = int(len(eigenvalues_arr[0]) - data[0]['id_p'] * len(eigenvalues_arr[0]))
+        id_p_1 = int(len(eigenvalues_arr[1]) - data[1]['id_p'] * len(eigenvalues_arr[1]))
+        ''' feature 0 '''
+        eigenvalues_sem_0 = eigenvalues_arr[0][:sem_p_0]
+        eigenvectors_sem_0 = eigenvectors_arr[0][:, :sem_p_0]
+        eigenvalues_id_0 = eigenvalues_arr[0][id_p_0:]
+        eigenvectors_id_0 = eigenvectors_arr[0][:, id_p_0:]
+        ''' feature 1 '''
+        eigenvalues_sem_1 = eigenvalues_arr[1][:sem_p_1]
+        eigenvectors_sem_1 = eigenvectors_arr[1][:, :sem_p_1]
+        eigenvalues_id_1 = eigenvalues_arr[1][id_p_1:]
+        eigenvectors_id_1 = eigenvectors_arr[1][:, id_p_1:]
+        '''feature fusion'''
+
+        '''make noise'''
+        noises = []
+        sem_noises_0 = []
+        sem_noises_1 = []
+        for i in range(num):
+            sample = np.round(np.random.RandomState(i * 100).randn(1, 512), decimals=3)[0]
+
+            b_vector_p_sem_0 = self._calculate_b_vector(sample, True, eigenvalues_sem_0, eigenvectors_sem_0,
+                                                        meanvector_arr[0])
+            b_vector_p_id_0 = self._calculate_b_vector(sample, True, eigenvalues_id_0, eigenvectors_id_0,
+                                                       meanvector_arr[0])
+
+            b_vector_p_sem_1 = self._calculate_b_vector(sample, True, eigenvalues_sem_1, eigenvectors_sem_1,
+                                                        meanvector_arr[1])
+            b_vector_p_id_1 = self._calculate_b_vector(sample, True, eigenvalues_id_1, eigenvectors_id_1,
+                                                       meanvector_arr[1])
+
+            out_sem_0 = alpha * meanvector_arr[0] + np.dot(eigenvectors_sem_0, b_vector_p_sem_0)
+            out_id_0 = alpha * meanvector_arr[0] + np.dot(eigenvectors_id_0, b_vector_p_id_0)
+
+            out_sem_1 = alpha * meanvector_arr[1] + np.dot(eigenvectors_sem_1, b_vector_p_sem_1)
+            out_id_1 = alpha * meanvector_arr[1] + np.dot(eigenvectors_id_1, b_vector_p_id_1)
+
+            noises.append(np.expand_dims(sample, 0))
+            # noises.append(np.expand_dims(out_sem_0, 0))
+            # noises.append(np.expand_dims(out_sem_0+out_id_0, 0))
+            noises.append(np.expand_dims(out_sem_1+out_id_1, 0))
+
+            # both_a = 0.5*(out_sem_0+out_id_0) + 0.5*(out_sem_1+out_id_1)
+            # both_a = 0.5*(out_id_0) + 0.5*(out_id_1)
+            # noises.append(np.expand_dims(both_a, 0))
+
+            # noises.append(np.expand_dims(out_sem_0, 0))
+
+            # sem_noises_0.append(np.expand_dims(out_sem_0, 0))
+            # sem_noises_1.append(np.expand_dims(out_sem_1, 0))
+
+            # noises.append(np.expand_dims(out_id_0, 0))
+            # noises.append(np.expand_dims(out_id_1, 0))
+
+            # x = sample - 0.5 * (out_sem_0+out_sem_1) # Cumulative identity
+
+            # noises.append(np.expand_dims(sample-out_id_1, 0)) # semantcie
+            # noises.append(np.expand_dims(sample-out_sem_0, 0)) # identity
+
+            # noises.append(np.expand_dims(sample-out_sem_1, 0))
+            # noises.append(np.expand_dims(x, 0))
+
+            # noises.append(np.expand_dims(1.0 * (out_sem_0)
+            #                              + 0.0 * ( out_sem_1)
+            #                              , 0))
+
+            # noises.append(np.expand_dims(0.5 * (out_sem_0+out_sem_1)
+            #                              + 0.5 * (out_id_0+out_id_1)
+            #                              , 0))
+        return noises
+        # sem_avg_0 = [np.mean(np.array(sem_noises_0)[:, :, :], axis=0)]
+        # sem_avg_1 = [np.mean(np.array(sem_noises_1)[:, :, :], axis=0)]
+        # return [sem_avg_1[0] - sem_avg_0[0]]
+
+    def make_compound_semantic_noise_3(self, data, num, pca_accuracy=99, alpha=1.0):
+        eigenvalues_arr = []
+        eigenvectors_arr = []
+        meanvector_arr = []
+
+        for i in range(len(data)):
+            eigenvalues = load(
+                'pca_obj/_' + data[i]['t_n'] + self._eigenvalues_prefix + str(data[i]['p_ac']) + ".npy")
+            eigenvectors = load(
+                'pca_obj/_' + data[i]['t_n'] + self._eigenvectors_prefix + str(data[i]['p_ac']) + ".npy")
+            meanvector_arr.append(load(
+                'pca_obj/_' + data[i]['t_n'] + self._meanvector_prefix + str(data[i]['p_ac']) + ".npy"))
+            eigenvectors_arr.append(eigenvectors)
+            eigenvalues_arr.append(eigenvalues)
+        '''calculate Mean'''
+        k_0 = int(data[0]['vec_p'] * len(eigenvalues_arr[0]))
+        k_1 = int(data[1]['vec_p'] * len(eigenvalues_arr[1]))
+        ''' feature 0 '''
+        eigenvalues_sem_0 = eigenvalues_arr[0][:k_0]
+        eigenvectors_sem_0 = eigenvectors_arr[0][:, :k_0]
+        eigenvalues_id_0 = eigenvalues_arr[0][k_0:]
+        eigenvalues_id_0 = eigenvalues_arr[0][k_0:]
+
+        eigenvalues_id_0 = eigenvalues_arr[0]
+        eigenvectors_id_0 = eigenvectors_arr[0]
+        ''' feature 1 '''
+        eigenvalues_sem_1 = eigenvalues_arr[1][:k_1]
+        eigenvectors_sem_1 = eigenvectors_arr[1][:, :k_1]
+        eigenvalues_id_1 = eigenvalues_arr[1][k_1:]
+        eigenvectors_id_1 = eigenvectors_arr[1][:, k_1:]
+        '''feature fusion'''
+
+        '''make noise'''
+        noises = []
+        for i in range(num):
+            sample = np.round(np.random.RandomState(i * 100).randn(1, 512), decimals=3)[0]
+
+            b_vector_p_sem_0 = self._calculate_b_vector(sample, True, eigenvalues_sem_0, eigenvectors_sem_0,
+                                                        meanvector_arr[0])
+            b_vector_p_id_0 = self._calculate_b_vector(sample, True, eigenvalues_id_0, eigenvectors_id_0,
+                                                       meanvector_arr[0])
+
+            b_vector_p_sem_1 = self._calculate_b_vector(sample, True, eigenvalues_sem_1, eigenvectors_sem_1,
+                                                        meanvector_arr[1])
+            b_vector_p_id_1 = self._calculate_b_vector(sample, True, eigenvalues_id_1, eigenvectors_id_1,
+                                                       meanvector_arr[1])
+
+            out_sem_0 = (alpha * meanvector_arr[0] + np.dot(eigenvectors_sem_0, b_vector_p_sem_0))
+            out_id_0 = alpha * meanvector_arr[0] + np.dot(eigenvectors_id_0, b_vector_p_id_0)
+
+            out_sem_1 = (alpha * meanvector_arr[1] + np.dot(eigenvectors_sem_1, b_vector_p_sem_1))
+            out_id_1 = alpha * meanvector_arr[1] + np.dot(eigenvectors_id_1, b_vector_p_id_1)
+
+            noises.append(np.expand_dims(sample, 0))
+            # noises.append(np.expand_dims(out_sem_0, 0))
+            # noises.append(np.expand_dims(out_sem_1, 0))
+            # noises.append(np.expand_dims(out_id_0, 0))
+            # noises.append(np.expand_dims(out_id_1, 0))
+
+            noises.append(np.expand_dims(0.5 * (out_sem_0)
+                                         + 0.5 * (out_sem_1)
+                                         , 0))
+
+            # noises.append(np.expand_dims(0.5 * (out_sem_0+out_sem_1)
+            #                              + 0.5 * (out_id_0+out_id_1)
+            #                              , 0))
+        return noises
+
+    def make_compound_semantic_noise_2(self, data, num, vec_percent, pca_accuracy=99):
+        eigenvalues_arr = []
+        eigenvectors_arr = []
+        meanvector_arr = []
+
+        for i in range(len(data)):
+            eigenvalues = load(
+                'pca_obj/_' + data[i]['t_n'] + self._eigenvalues_prefix + str(data[i]['p_ac']) + ".npy")
+            eigenvectors = load(
+                'pca_obj/_' + data[i]['t_n'] + self._eigenvectors_prefix + str(data[i]['p_ac']) + ".npy")
+            meanvector_arr.append(load(
+                'pca_obj/_' + data[i]['t_n'] + self._meanvector_prefix + str(data[i]['p_ac']) + ".npy"))
+            eigenvectors_arr.append(eigenvectors[:, :int(data[i]['vec_p'] * len(eigenvalues))])
+            eigenvalues_arr.append(eigenvalues[:int(data[i]['vec_p'] * len(eigenvalues))])
+        '''calculate Mean'''
+        meanvector = meanvector_arr[1]
+        ''''''
+        n_egv_0 = eigenvalues_arr[0] / max(eigenvalues_arr[0])
+        n_egv_1 = eigenvalues_arr[1] / max(eigenvalues_arr[1])
+        ''''''
+        eigenvectors = np.concatenate([eigenvectors_arr[1], eigenvectors_arr[0]], axis=1)
+        eigenvalues = np.concatenate([eigenvalues_arr[1], eigenvalues_arr[0]], axis=0)
+
+        n_egvs = np.concatenate([n_egv_0, n_egv_0], axis=0)
+        #
+        eigenvectors = eigenvectors[:, :int(vec_percent * len(eigenvalues))]
+        eigenvalues = eigenvalues[:int(vec_percent * len(eigenvalues))]
+
+        n_egvs = n_egvs[:int(vec_percent * len(eigenvalues))]
+
+        '''sort based on the importance'''
+        eigenvalues = eigenvalues[np.argsort(n_egvs)[::-1]]
+        eigenvectors = eigenvectors[:, np.argsort(n_egvs)[::-1]]
+
+        '''make noise'''
+        noises = []
+        for i in range(num):
+            sample = np.round(np.random.RandomState(i * 100).randn(1, 512), decimals=3)[0]
+            b_vector_p = self._calculate_b_vector(sample, True, eigenvalues, eigenvectors, meanvector)
+            out = meanvector + np.dot(eigenvectors, b_vector_p)
+            noises.append(np.expand_dims(sample, 0))
+            noises.append(np.expand_dims(out, 0))
+        return noises
+
+    def make_compound_semantic_noise_1(self, data, num, vec_percent, pca_accuracy=99):
+        eigenvalues_arr = []
+        eigenvectors_arr = []
+        meanvector_arr = []
+
+        for i in range(len(data)):
+            eigenvalues = load(
+                'pca_obj/_' + data[i]['t_n'] + self._eigenvalues_prefix + str(data[i]['p_ac']) + ".npy")
+            eigenvectors = load(
+                'pca_obj/_' + data[i]['t_n'] + self._eigenvectors_prefix + str(data[i]['p_ac']) + ".npy")
+            meanvector_arr.append(load(
+                'pca_obj/_' + data[i]['t_n'] + self._meanvector_prefix + str(data[i]['p_ac']) + ".npy"))
+            eigenvectors_arr.append(eigenvectors[:, :int(data[i]['vec_p'] * len(eigenvalues))])
+            eigenvalues_arr.append(eigenvalues[:int(data[i]['vec_p'] * len(eigenvalues))])
+
+        '''create the covariance matrix between eigenvectors'''
+        # A = eigenvalues_arr[0] * eigenvectors_arr[0]
+        # B = eigenvalues_arr[1] * eigenvectors_arr[1]
+
+        ''''''
+        # AB = np.dot(A.T, B)
+        # AB_m = AB - np.mean(AB)
+        # U, S, V = np.linalg.svd(AB_m / np.sqrt(len(AB)))
+        # u, s, vh = np.linalg.svd(AB)
+        ''''''
+        # A_m = A - np.mean(A)
+        # B_m = B - np.mean(B)
+        #
+        # u_A, s_A, vh_A = np.linalg.svd(A)
+        # u_B, s_B, vh_B = np.linalg.svd(B)
+
+        # eigenvalues = np.concatenate([s_B[1:3], s_A[10:100], ])
+        # eigenvectors = np.concatenate([u_B[:, 1:3], u_A[:, 10:100], ], axis=1)
+
+        # cov_m = np.cov(np.concatenate([eigenvectors_arr[0], eigenvectors_arr[1]], axis=1))
+        # cov_m_T = np.cov(np.concatenate([eigenvectors_arr[0], eigenvectors_arr[1]], axis=1).T)
+        # dot_p = np.dot(eigenvectors_arr[0].T, eigenvectors_arr[1])
+        # cs = cosine_similarity(eigenvectors_arr[0], eigenvectors_arr[1])
+
+        meanvector = meanvector_arr[1]
+        # meanvector = meanvector_arr[0] + meanvector_arr[1]
+
+        eigenvectors = np.concatenate([eigenvectors_arr[1], eigenvectors_arr[0]], axis=1)
+        eigenvalues = np.concatenate([eigenvalues_arr[1], eigenvalues_arr[0]], axis=0)
+        #
+        eigenvectors = eigenvectors[:, :int(vec_percent * len(eigenvalues))]
+        eigenvalues = eigenvalues[:int(vec_percent * len(eigenvalues))]
+
+        ''' the similarity between the 2 transformation matrix'''
+        # dot_p = np.dot(eigenvectors_arr[0].T, eigenvectors_arr[1])
+        dot_p = np.dot(eigenvectors_arr[0].T,
+                       eigenvectors_arr[1])
+        dot_p_f = dot_p.flatten()
+        x = np.arange(0, len(dot_p_f))
+
+        plt.style.use('ggplot')
+        plt.plot(x, np.exp(abs(dot_p_f)), linestyle='--', c='b')
+        # plt.plot(x, abs(dot_p_f), linestyle='--', c='b')
+
+        # sns.heatmap(dot_p, linewidth=0.0000001,
+        #             vmin=np.min(dot_p),
+        #             vmax=np.max(dot_p))
+
+        plt.savefig('similarity')
+
+        idx = np.argsort(abs(dot_p_f))[:-1]  # the most less similar
+        A_ind = []
+        B_ind = []
+        ''' adding the most important eigenVectors'''
+        # A_ind = [i for i in np.arange(0,5)]
+        B_ind = [i for i in np.arange(0, 10)]
+        ''' adding less similar '''
+        for ids in range(25):
+            i = idx[ids] // (len(dot_p[0, :]))
+            j = idx[ids] - (i * len(dot_p[0, :]))
+            A_ind.append(i)
+            B_ind.append(j)
+        ''' '''
+        A_ind = list(set(A_ind))
+        B_ind = list(set(B_ind))
+
+        A_evecs = eigenvectors_arr[0][:, A_ind]
+        A_evals = eigenvalues_arr[0][A_ind]
+
+        B_evecs = eigenvectors_arr[1][:, B_ind]
+        B_evals = eigenvalues_arr[1][B_ind]
+
+        '''normal'''
+        A_evals_N = eigenvalues_arr[0] / max(A_evals)
+        B_evals_N = eigenvalues_arr[1] / max(B_evals)
+        n_egvs = np.concatenate([A_evals_N, B_evals_N], axis=0)
+
+        ''''''
+        eigenvectors = np.concatenate([A_evecs, B_evecs], axis=1)
+        eigenvalues = np.concatenate([A_evals, B_evals], axis=0)
+
+        eigenvalues = eigenvalues[np.argsort(eigenvalues)[::-1]]
+        eigenvectors = eigenvectors[:, np.argsort(eigenvalues)[::-1]]
+
+        '''make noise'''
+        noises = []
+        for i in range(num):
+            sample = np.round(np.random.RandomState(i * 100).randn(1, 512), decimals=3)[0]
+            b_vector_p = self._calculate_b_vector(sample, True, eigenvalues, eigenvectors, meanvector)
+            out = meanvector + np.dot(eigenvectors, b_vector_p)
+            noises.append(np.expand_dims(sample, 0))
+            noises.append(np.expand_dims(out, 0))
+        return noises
+
+    def make_compound_semantic_noise_0(self, data, num, vec_percent, pca_accuracy=99):
+        eigenvalues_arr = []
+        eigenvectors_arr = []
+        meanvector_arr = []
+
+        for i in range(len(data)):
+            eigenvalues = load(
+                'pca_obj/_' + data[i]['t_n'] + self._eigenvalues_prefix + str(data[i]['p_ac']) + ".npy")
+            eigenvectors = load(
+                'pca_obj/_' + data[i]['t_n'] + self._eigenvectors_prefix + str(data[i]['p_ac']) + ".npy")
+            meanvector_arr.append(load(
+                'pca_obj/_' + data[i]['t_n'] + self._meanvector_prefix + str(data[i]['p_ac']) + ".npy"))
+            eigenvectors_arr.append(eigenvectors[:, :int(data[i]['vec_p'] * len(eigenvalues))])
+            eigenvalues_arr.append(eigenvalues[:int(data[i]['vec_p'] * len(eigenvalues))])
+
+        meanvector = meanvector_arr[1]
+        ''''''
+        n_egv_0 = eigenvalues_arr[0] / max(eigenvalues_arr[0])
+        n_egv_1 = eigenvalues_arr[1] / max(eigenvalues_arr[1])
+        ''''''
+        # meanvector = meanvector_arr[0] + meanvector_arr[1]
+
+        eigenvectors = np.concatenate([eigenvectors_arr[1], eigenvectors_arr[0]], axis=1)
+        eigenvalues = np.concatenate([eigenvalues_arr[1], eigenvalues_arr[0]], axis=0)
+
+        n_egvs = np.concatenate([n_egv_0, n_egv_0], axis=0)
+        #
+        eigenvectors = eigenvectors[:, :int(vec_percent * len(eigenvalues))]
+        eigenvalues = eigenvalues[:int(vec_percent * len(eigenvalues))]
+
+        n_egvs = n_egvs[:int(vec_percent * len(eigenvalues))]
+
+        '''sort based on the importance'''
+        eigenvalues = eigenvalues[np.argsort(n_egvs)[::-1]]
+        eigenvectors = eigenvectors[:, np.argsort(n_egvs)[::-1]]
+
+        '''make noise'''
+        noises = []
+        for i in range(num):
+            sample = np.round(np.random.RandomState(i * 100).randn(1, 512), decimals=3)[0]
+            b_vector_p = self._calculate_b_vector(sample, True, eigenvalues, eigenvectors, meanvector)
+            out = meanvector + np.dot(eigenvectors, b_vector_p)
+            noises.append(np.expand_dims(sample, 0))
+            noises.append(np.expand_dims(out, 0))
+        return noises
+
+    def old_make_compound_semantic_noise(self, data, num, vec_percent, pca_accuracy=99):
+        eigenvalues_arr = []
+        eigenvectors_arr = []
+        meanvector_arr = []
+
+        for i in range(len(data)):
+            eigenvalues = load(
+                'pca_obj/_' + data[i]['t_n'] + self._eigenvalues_prefix + str(data[i]['p_ac']) + ".npy")
+            eigenvectors = load(
+                'pca_obj/_' + data[i]['t_n'] + self._eigenvectors_prefix + str(data[i]['p_ac']) + ".npy")
+            meanvector_arr.append(load(
+                'pca_obj/_' + data[i]['t_n'] + self._meanvector_prefix + str(data[i]['p_ac']) + ".npy"))
+            eigenvectors_arr.append(eigenvectors[:, :int(data[i]['vec_p'] * len(eigenvalues))])
+            eigenvalues_arr.append(eigenvalues[:int(data[i]['vec_p'] * len(eigenvalues))])
+
+        '''create the covariance matrix between eigenvectors'''
+        cov_m = np.cov(np.concatenate([eigenvectors_arr[0], eigenvectors_arr[1]], axis=1))
+        cov_m_T = np.cov(np.concatenate([eigenvectors_arr[0], eigenvectors_arr[1]], axis=1).T)
+        dot_p = np.dot(eigenvectors_arr[0].T, eigenvectors_arr[1])
+        # cs = cosine_similarity(eigenvectors_arr[0], eigenvectors_arr[1])
+
+        meanvector = 0.5 * meanvector_arr[0] + 0.5 * meanvector_arr[1]
+        eigenvectors = np.concatenate([eigenvectors_arr[0], eigenvectors_arr[1]], axis=1)
+        eigenvalues = np.concatenate([eigenvalues_arr[0], eigenvalues_arr[1]], axis=0)
+
+        eigenvectors = eigenvectors[:, :int(vec_percent * len(eigenvalues))]
+        eigenvalues = eigenvalues[:int(vec_percent * len(eigenvalues))]
+
+        '''make noise'''
+        noises = []
+        for i in range(num):
+            sample = np.round(np.random.RandomState(i * 100).randn(1, 512), decimals=3)[0]
+            b_vector_p = self._calculate_b_vector(sample, True, eigenvalues, eigenvectors, meanvector)
+            out = meanvector + np.dot(eigenvectors, b_vector_p)
+            noises.append(np.expand_dims(sample, 0))
             noises.append(np.expand_dims(out, 0))
         return noises
 
