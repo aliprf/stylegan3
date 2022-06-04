@@ -118,7 +118,7 @@ class FER:
         f_saver = open(final_csv, "w")
         with open(cvs_query_file) as csv_file:
             csv_reader = csv.reader(csv_file, delimiter=',')
-            line_count = 0
+
             for row in tqdm(csv_reader):
                 save_or_not = []
                 img_name = row[0]
@@ -160,7 +160,6 @@ class FER:
                                   " ".join(x for x in race) + ',' +
                                   " ".join(x for x in gender) + '\n')
                 ''''''
-                line_count += 1
         f_saver.close()
 
     def create_histogram_csv(self, cvs_file, f_index, task, file_name):

@@ -667,8 +667,8 @@ if __name__ == "__main__":
     # noise_ao = lin_obj.make_single_semantic_noise(task_name='ANGRY_OLD', pca_accuracy=99, num=30, vec_percent=0.35)
     # noise_hm = lin_obj.make_single_semantic_noise(task_name='HAPPY_MALE', pca_accuracy=99, num=30, vec_percent=0.15)
 
-    # noise_A = lin_obj.make_single_semantic_noise_n(task_name='FEMALE', pca_accuracy=99,
-    #                                                num=30, vec_percent=0.1, alpha=1.0)
+    noise_A = lin_obj.make_single_semantic_noise_n(task_name='ANGRY', pca_accuracy=99, num=30,
+                                                   vec_percent_sem=0.1, vec_percent_id=0.99, alpha=1.0)
 
     # noise = lin_obj.make_compound_semantic_noise(data=[{'t_n': 'FEMALE', 'p_ac': 99, 'sem_p': 0.1, 'id_p': 0.5},
     #                                                    {'t_n': 'ANGRY', 'p_ac': 99, 'sem_p': 0.1, 'id_p': 0.5},
@@ -698,16 +698,16 @@ if __name__ == "__main__":
 
     '''======================================'''
 
-    '''         generating images:              '''
-    # generate_with_noise(network_pkl=FolderStructures.styleGan_weight_path,
-    #                     noises=noise,
-    #                     fer_detection=False,
-    #                     truncation_psi=0.7,
-    #                     noise_mode='const',  # 'const', 'random', 'none'],
-    #                     outdir=FolderStructures.prefix,
-    #                     translate=parse_vec2('0,0'),
-    #                     rotate=0,
-    #                     class_idx=0)
+    # '''         generating images:              '''
+    generate_with_noise(network_pkl=FolderStructures.styleGan_weight_path,
+                        noises=noise_A,
+                        fer_detection=False,
+                        truncation_psi=0.7,
+                        noise_mode='const',  # 'const', 'random', 'none'],
+                        outdir=FolderStructures.prefix,
+                        translate=parse_vec2('0,0'),
+                        rotate=0,
+                        class_idx=0)
     '''======================================'''
 
     # noise = asm.get_asm_svd(task_id=6, pca_accuracy=99, num=20, task='fer', alpha=1.0)
@@ -768,15 +768,19 @@ if __name__ == "__main__":
     #                             )
     # #
     '''filter with query'''
-    fer_class.query_images(cvs_query_file=prefix + './angry_50k.csv',
-                           query={
-                               # 'fer': [Expression_codes.ANGER, Expression_codes.NEUTRAL],
-                               'fer': [Expression_codes.HAPPY],
-                               'gender': [Gender_codes.MALE],
-                               'race': [Race_codes.WHITE],
-                               'age': [Age_codes.YOUTH, Age_codes.MIDDLE, Age_codes.OLD]},
+    # fer_class.query_images(cvs_query_file=prefix + './angry_50k.csv',
+    # fer_class.query_images(cvs_query_file='./happy_100k.csv',
+    #                        query={
+                               'fer': [Expression_codes.ANGER, Expression_codes.NEUTRAL],
+                               # 'fer': [Expression_codes.HAPPY],
+                               # 'gender': [Gender_codes.FEMALE],
+                               # 'race': [Race_codes.BLACK],
+                               # 'age': [Age_codes.YOUTH, Age_codes.MIDDLE, Age_codes.OLD]},
+                           final_csv='HAPPY_MALE_BLACK.csv'
                            final_csv='HAPPY_MALE_WHITE.csv'
-                           )
+                           final_csv='HAPPY_FEMALE_WHITE.csv'
+                           # final_csv='HAPPY_FEMALE_BLACK.csv'
+                           # )
 
     '''         make the histograms'''
     # image	expression	age	race gender

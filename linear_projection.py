@@ -16,6 +16,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 from scipy import spatial
 import matplotlib.pyplot as plt
 import seaborn as sns
+from scipy.special import softmax
+from scipy.fft import fft, fftfreq, dct, dctn
 
 
 class LinearProjection:
@@ -147,7 +149,54 @@ class LinearProjection:
         save('pca_obj/_' + name + self._eigenvectors_prefix + str(pca_accuracy), eigenvectors)
         save('pca_obj/_' + name + self._meanvector_prefix + str(pca_accuracy), mean_lbl_arr)
 
-    def make_single_semantic_noise_n(self, task_name, pca_accuracy, num, alpha=1.0, vec_percent=1.0):
+    def _modify_weight(self, x):
+        """"""
+        f_x = x
+        '''flip over the mean'''
+        # avg = np.mean(x, 0)
+        # f_x = avg - x
+        '''-random--'''
+        # w = np.round(np.random.randn(1, 512), decimals=3)[0]
+        '''-sin--'''
+        # w = 1.0 * np.array([np.sin(i * 1 / (np.shape(x)[0] / 1.0*np.pi)) for i in range(0, np.shape(x)[0])])
+        # f_x = np.array([w.T * x[:, i] for i in range(0, np.shape(x)[1])]).T
+        '''-cos--'''
+        w = 2.0*np.array([np.cos(i * (1 / (np.shape(x)[0] / (1.0*2.0 * np.pi)))) for i in range(0, np.shape(x)[0])])
+        if len(np.shape(x)) == 1:
+            f_x = w.T * x
+        else:
+            f_x = np.array([w.T * x[:, i] for i in range(0, np.shape(x)[1])]).T
+        '''--discrete fourier transform--'''
+        # SAMPLE_RATE = 1
+        # DURATION = 512
+        # N = SAMPLE_RATE * DURATION
+        #
+        # f_x = fft(f_x)
+        # yf = fft(f_x)
+        # f_x = 10.1 * dctn(f_x)
+        # xf = range(0,512)
+        #
+        # # plt.plot(xf, np.abs(yf[:, :4]))
+        #
+        # # plt.plot(xf, yf[:, :2])
+        # # plt.plot(xf, f_x[:, :2])
+        # # plt.show()
+
+        # f_x = yf
+        ''''''
+        return f_x
+
+    def _component_svd_weight(self, x):
+        f_x = x
+        u, s, vh = np.linalg.svd(x, full_matrices=True)
+        f_x = np.sum(
+            np.array([s[i] * np.dot(np.expand_dims(u[i], 1), np.expand_dims(vh[i], 0)) for i in range(50, 400)]),
+            0)
+        # u, s, vh = np.linalg.svd(x.T, full_matrices=True)
+        # f_x = np.sum(np.array([s[i] * np.dot(np.expand_dims(u[i], 1), np.expand_dims(vh[i], 0)) for i in range(10,49)]), 0).T
+        return f_x
+
+    def make_single_semantic_noise_n(self, task_name, pca_accuracy, num, vec_percent_sem, vec_percent_id, alpha=1.0):
         noises = []
         eigenvalues = load(
             'pca_obj/_' + task_name + self._eigenvalues_prefix + str(pca_accuracy) + ".npy")
@@ -159,16 +208,21 @@ class LinearProjection:
         # s = load('pca_obj/_' + task_name + self._s_prefix + str(pca_accuracy) + ".npy")
         # vh = load('pca_obj/_' + task_name + self._vt_prefix + str(pca_accuracy) + ".npy")
         ''''''
-        k = int(vec_percent * len(eigenvalues))
+        k_sem = int(vec_percent_sem * len(eigenvalues))
+        k_id = int(len(eigenvalues) - vec_percent_id * len(eigenvalues))
 
-        eigenvalues_sem = eigenvalues[:k]
-        eigenvectors_sem = eigenvectors[:, :k]
+        eigenvalues_sem = eigenvalues[:k_sem]
+        eigenvectors_sem = eigenvectors[:, :k_sem]
 
-        eigenvalues_id = eigenvalues[k:]
-        eigenvectors_id = eigenvectors[:, k:]
-        #
-        # eigenvalues_id = eigenvalues[:(1-k)]
-        # eigenvectors_id = eigenvectors[:, :(1-k)]
+        eigenvalues_id = eigenvalues[k_id:]
+        eigenvectors_id = eigenvectors[:, k_id:]
+
+        # eigenvectors_sem_soft = softmax(eigenvectors_sem, axis=0)
+
+        eigenvectors_sem_fx = self._modify_weight(eigenvectors_sem)
+        eigenvalues_sem_fx = eigenvalues_sem  # abs(self._modify_weight(eigenvalues_sem))
+
+        # eigenvectors_sem_fx = self._component_svd_weight(self._modify_weight(eigenvectors_sem))
 
         for i in range(num):
             sample = np.round(np.random.RandomState(i).randn(1, 512), decimals=3)[0]
@@ -176,16 +230,22 @@ class LinearProjection:
             b_vector_p_sem = self._calculate_b_vector(sample, True, eigenvalues_sem, eigenvectors_sem, meanvector)
             b_vector_p_id = self._calculate_b_vector(sample, True, eigenvalues_id, eigenvectors_id, meanvector)
 
+            b_vector_p_sem_fx = self._calculate_b_vector(sample, False, eigenvalues_sem_fx, eigenvectors_sem_fx,
+                                                         meanvector)
+
             out = alpha * meanvector + np.dot(eigenvectors, b_vector_p)
             out_sem = (alpha * meanvector + np.dot(eigenvectors_sem, b_vector_p_sem))
             out_id = alpha * meanvector + np.dot(eigenvectors_id, b_vector_p_id)
 
-            noises.append(np.expand_dims(sample, 0))
-            # noises.append(np.expand_dims(out, 0))
-            noises.append(np.expand_dims(out_sem, 0))
-            noises.append(np.expand_dims(out_id, 0))
+            out_sem_fx = (alpha * meanvector + np.dot(eigenvectors_sem_fx, b_vector_p_sem_fx))
 
-            noises.append(np.expand_dims(0.5 * out_sem + 0.5 * out_id, 0))
+            # noises.append(np.expand_dims(sample, 0))
+            # noises.append(np.expand_dims(out, 0))
+            # noises.append(np.expand_dims(out_sem, 0))
+            noises.append(np.expand_dims(out_sem_fx, 0))
+            # noises.append(np.expand_dims(out_id, 0))
+
+            # noises.append(np.expand_dims(1.0 * out_sem_fx + 1.0 * out_id, 0))
 
             # '''SVD'''
             # u, s, vh = np.linalg.svd(np.array(np.expand_dims(sample, 0)).T, full_matrices=True)
@@ -302,7 +362,7 @@ class LinearProjection:
             noises.append(np.expand_dims(sample, 0))
             # noises.append(np.expand_dims(out_sem_0, 0))
             # noises.append(np.expand_dims(out_sem_0+out_id_0, 0))
-            noises.append(np.expand_dims(out_sem_1+out_id_1, 0))
+            noises.append(np.expand_dims(out_sem_1 + out_id_1, 0))
 
             # both_a = 0.5*(out_sem_0+out_id_0) + 0.5*(out_sem_1+out_id_1)
             # both_a = 0.5*(out_id_0) + 0.5*(out_id_1)
