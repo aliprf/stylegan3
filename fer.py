@@ -14,9 +14,10 @@ from PIL import Image
 import os
 import csv
 import shutil
-
+from config import  FolderStructures
 from image_utility import ImageUtilities
 from tqdm import tqdm
+from sklearn.utils import shuffle
 
 
 class FER:
@@ -266,6 +267,79 @@ class FER:
                                 " ".join(str(x) for x in np.round(gender.tolist(), 3).tolist()) + '\n')
         print("DONE")
 
+    def query_images_by_path(self, folder_names, query, num_samples):
+        noise_arr = []
+        noise_paths = [f'{FolderStructures.prefix}zz_productin/' + fn + '/noise_vectors' for fn in folder_names]
+        fer_paths = [f'{FolderStructures.prefix}zz_productin/' + fn + '/feature_vectors' for fn in folder_names]
+        race_paths = [f'{FolderStructures.prefix}zz_productin/' + fn + '/race_extraction' for fn in folder_names]
+        gender_paths = [f'{FolderStructures.prefix}zz_productin/' + fn + '/gender_extraction' for fn in folder_names]
+        age_paths = [f'{FolderStructures.prefix}zz_productin/' + fn + '/age_extraction' for fn in folder_names]
+        for p_index in range(len(noise_paths)):
+            noise_path = noise_paths[p_index]
+            fer_path = fer_paths[p_index]
+            race_path = race_paths[p_index]
+            gender_path = gender_paths[p_index]
+            age_path = age_paths[p_index]
+            i = 0
+            item_list = shuffle(os.listdir(noise_path))
+            for file in tqdm(item_list):
+                if file.endswith(".npy"):
+                    try:
+                        bare_f = str(file).split('.')[0]
+                        noise_f = os.path.join(noise_path, file)
+                        noise = np.load(noise_f)[0]
+                        fer_f = os.path.join(fer_path, 'exp_' + bare_f + '.npy')
+                        fer = np.load(fer_f)
+
+                        gender_f = os.path.join(gender_path, bare_f + '_gender.npy')
+                        gender = np.load(gender_f)
+
+                        race_f = os.path.join(race_path, bare_f + '_race.npy')
+                        race = np.load(race_f)
+
+                        age_f = os.path.join(age_path, bare_f + '_age.npy')
+                        age = np.load(age_f)
+
+                        save_or_not = []
+
+                        if len(fer) != 7:
+                            fer = fer[0]
+
+                        if query['fer'] is not None:
+                            task_ids = query['fer']
+                            if np.argmax(fer) in task_ids and fer[np.argmax(fer)] >= 0.4:
+                                save_or_not.append(1)
+                            else:
+                                save_or_not.append(0)
+                        if query['gender'] is not None:
+                            task_ids = query['gender']
+                            if np.argmax(gender) in task_ids and gender[np.argmax(gender)] >= 0.7:
+                                save_or_not.append(1)
+                            else:
+                                save_or_not.append(0)
+                        if query['race'] is not None:
+                            task_ids = query['race']
+                            if np.argmax(race) in task_ids and race[np.argmax(race)] >= 0.4:
+                                save_or_not.append(1)
+                            else:
+                                save_or_not.append(0)
+                        if query['age'] is not None:
+                            task_ids = query['age']
+                            if np.argmax(age) in task_ids and age[np.argmax(age)] >= 0.4:
+                                save_or_not.append(1)
+                            else:
+                                save_or_not.append(0)
+
+                        avg = np.mean(save_or_not)
+                        if avg >= 1:
+                            noise_arr.append(noise)
+                            i += 1
+                    except Exception as e:
+                        print(e)
+
+                    if i > num_samples:
+                        break
+        return noise_arr
 
 class Sampling(tf.keras.layers.Layer):
     """Uses (z_mean, z_log_var) to sample z, the vector encoding a digit."""

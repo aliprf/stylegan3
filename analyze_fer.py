@@ -6,7 +6,8 @@ from tqdm import tqdm
 from scipy import interpolate, linalg
 import tensorflow as tf
 import cv2
-
+from fer import FER
+from sklearn.utils import shuffle
 
 class AnalyzeFer:
 
@@ -19,6 +20,20 @@ class AnalyzeFer:
             self._histogram = np.zeros(shape=7, dtype=np.int)
             self._histogram_2d = np.zeros(shape=(7, 7), dtype=np.int)  # 7 dimensions & 30-40-50-60-70-80-90
             self._expressions = ['Neutral', 'Happy', 'Sad', 'Surprise', 'Fear', 'Disgust', 'Anger']
+
+    def predict_and_save(self, img_dir, out_dir, csv_file_path):
+        images_name_list = sorted(os.listdir(img_dir))
+        f = open(csv_file_path, "w")
+        fer_class = FER(h5_address='/media/ali/extradata/Ad-Corre-weights/AffectNet_6336.h5')
+
+        for image_name in tqdm(images_name_list):
+            image_dir = img_dir + '/' + image_name
+            exp, exp_vec = fer_class.load_and_recognize_fer(img_path=image_dir)
+            save_name = out_dir + '/' + 'exp_' + os.path.splitext(image_name)[0] + '.npy'
+            np.save(save_name, exp_vec)
+            f.write(str(os.path.splitext(image_name)[0]) + ',' +
+                    " ".join(str(x) for x in np.round(exp_vec.tolist(), 3).tolist()) + ' \n')
+        f.close()
 
     def calculate_exp_histogram_2d(self):
         for file in tqdm(os.listdir(self._exp_path)):

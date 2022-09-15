@@ -18,6 +18,11 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.special import softmax
 from scipy.fft import fft, fftfreq, dct, dctn
+from numpy.fft import *
+from sklearn.utils import shuffle
+import numpy as np
+import dask.array as da
+from dask_ml.decomposition import PCA as DPCA
 
 
 class LinearProjection:
@@ -68,7 +73,8 @@ class LinearProjection:
                np.expand_dims(np.mean(noise_arr_0, 0), 0), \
                np.expand_dims(np.mean(noise_arr_1, 0), 0)
 
-    def create_pca_from_npy(self, tasks, noise_path, fer_path, race_path, gender_path, age_path, name, pca_accuracy=99):
+    def create_pca_from_npy_old(self, tasks, noise_path, fer_path, race_path, gender_path, age_path, name,
+                                pca_accuracy=99):
         print('PCA calculation started: loading labels')
         noise_arr = []
         i = 0
@@ -77,7 +83,7 @@ class LinearProjection:
                 bare_f = str(file).split('.')[0]
                 noise_f = os.path.join(noise_path, file)
                 noise = np.load(noise_f)[0]
-                noise = np.clip(noise, -2.5, +2.5)
+                noise = np.clip(noise, -5.0, +5.0)
 
                 fer_f = os.path.join(fer_path, 'exp_' + bare_f + '.npy')
                 fer = np.load(fer_f)
@@ -149,7 +155,113 @@ class LinearProjection:
         save('pca_obj/_' + name + self._eigenvectors_prefix + str(pca_accuracy), eigenvectors)
         save('pca_obj/_' + name + self._meanvector_prefix + str(pca_accuracy), mean_lbl_arr)
 
-    def _modify_weight(self, x):
+    def create_pca_from_npy(self, tasks, noise_paths, fer_paths, race_paths, gender_paths, age_paths,
+                            name, pca_accuracy=99, sample_limit=20000, save_dir='./pca_obj/_'):
+        print('PCA loading labels => ' + name)
+        noise_arr = []
+
+        for p_index in range(len(noise_paths)):
+            noise_path = noise_paths[p_index]
+            fer_path = fer_paths[p_index]
+            race_path = race_paths[p_index]
+            gender_path = gender_paths[p_index]
+            age_path = age_paths[p_index]
+            i = 0
+            item_list = shuffle(os.listdir(noise_path))
+            for file in tqdm(item_list):
+                if file.endswith(".npy"):
+                    try:
+                        bare_f = str(file).split('.')[0]
+                        noise_f = os.path.join(noise_path, file)
+                        noise = np.load(noise_f)[0]
+                        fer_f = os.path.join(fer_path, 'exp_' + bare_f + '.npy')
+                        fer = np.load(fer_f)
+
+                        gender_f = os.path.join(gender_path, bare_f + '_gender.npy')
+                        gender = np.load(gender_f)
+
+                        race_f = os.path.join(race_path, bare_f + '_race.npy')
+                        race = np.load(race_f)
+
+                        age_f = os.path.join(age_path, bare_f + '_age.npy')
+                        age = np.load(age_f)
+
+                        save_or_not = []
+
+                        if len(fer) != 7:
+                            fer = fer[0]
+
+                        if tasks['fer'] is not None:
+                            task_ids = tasks['fer']
+                            if np.argmax(fer) in task_ids and fer[np.argmax(fer)] >= 0.4:
+                                save_or_not.append(1)
+                            else:
+                                save_or_not.append(0)
+                        if tasks['gender'] is not None:
+                            task_ids = tasks['gender']
+                            if np.argmax(gender) in task_ids and gender[np.argmax(gender)] >= 0.9:
+                                save_or_not.append(1)
+                            else:
+                                save_or_not.append(0)
+                        if tasks['race'] is not None:
+                            task_ids = tasks['race']
+                            if np.argmax(race) in task_ids and race[np.argmax(race)] >= 0.5:
+                                save_or_not.append(1)
+                            else:
+                                save_or_not.append(0)
+                        if tasks['age'] is not None:
+                            task_ids = tasks['age']
+                            if np.argmax(age) in task_ids and age[np.argmax(age)] >= 0.5:
+                                save_or_not.append(1)
+                            else:
+                                save_or_not.append(0)
+
+                        avg = np.mean(save_or_not)
+                        if avg >= 1:
+                            noise_arr.append(noise)
+                            i += 1
+                    except Exception as e:
+                        print(e)
+
+                    if i > sample_limit:
+                        break
+        '''svd'''
+        # noise_arr = np.array(noise_arr)
+        # u, s, vh = np.linalg.svd(noise_arr.T, full_matrices=True)
+        # save('pca_obj_fft/_' + name + self._u_prefix + str(pca_accuracy), u)
+        # save('pca_obj_fft/_' + name + self._s_prefix + str(pca_accuracy), s)
+        # save('pca_obj_fft/_' + name + self._vt_prefix + str(pca_accuracy), vh)
+
+        ''' no normalization is needed, since we want to generate hm'''
+        print('PCA calculation => ' + name)
+        print(len(noise_arr))
+        mean_lbl_arr = np.mean(noise_arr, axis=0)
+        # reduced_lbl_arr, eigenvalues, eigenvectors = self._func_PCA(noise_arr, pca_accuracy)
+        reduced_lbl_arr, eigenvalues, eigenvectors = self._func_PCA_dask(noise_arr, pca_accuracy)
+        eigenvectors = eigenvectors.T
+        save(save_dir + name + self._eigenvalues_prefix + str(pca_accuracy), eigenvalues)
+        save(save_dir + name + self._eigenvectors_prefix + str(pca_accuracy), eigenvectors)
+        save(save_dir + name + self._meanvector_prefix + str(pca_accuracy), mean_lbl_arr)
+        mean_lbl_arr = None
+        reduced_lbl_arr = None
+        eigenvalues = None
+        eigenvectors = None
+
+    def create_pca_from_list(self, noise_arr, name, save_dir='./pca_obj/_', pca_accuracy=99):
+        print('create_pca_from_list => ' + name)
+        print(len(noise_arr))
+        mean_lbl_arr = np.mean(noise_arr, axis=0)
+        reduced_lbl_arr, eigenvalues, eigenvectors = self._func_PCA_dask(noise_arr)
+        eigenvectors = eigenvectors.T
+        save(save_dir + name + self._eigenvalues_prefix + str(pca_accuracy), eigenvalues)
+        save(save_dir + name + self._eigenvectors_prefix + str(pca_accuracy), eigenvectors)
+        save(save_dir + name + self._meanvector_prefix + str(pca_accuracy), mean_lbl_arr)
+        mean_lbl_arr = None
+        reduced_lbl_arr = None
+        eigenvalues = None
+        eigenvectors = None
+
+    def _modify_weight(self, x, index=1):
         """"""
         f_x = x
         '''flip over the mean'''
@@ -161,11 +273,11 @@ class LinearProjection:
         # w = 1.0 * np.array([np.sin(i * 1 / (np.shape(x)[0] / 1.0*np.pi)) for i in range(0, np.shape(x)[0])])
         # f_x = np.array([w.T * x[:, i] for i in range(0, np.shape(x)[1])]).T
         '''-cos--'''
-        w = 2.0*np.array([np.cos(i * (1 / (np.shape(x)[0] / (1.0*2.0 * np.pi)))) for i in range(0, np.shape(x)[0])])
-        if len(np.shape(x)) == 1:
-            f_x = w.T * x
-        else:
-            f_x = np.array([w.T * x[:, i] for i in range(0, np.shape(x)[1])]).T
+        # w = 2.0*np.array([np.cos(i * (1 / (np.shape(x)[0] / (1.0*2.0 * np.pi)))) for i in range(0, np.shape(x)[0])])
+        # if len(np.shape(x)) == 1:
+        #     f_x = w.T * x
+        # else:
+        #     f_x = np.array([w.T * x[:, i] for i in range(0, np.shape(x)[1])]).T
         '''--discrete fourier transform--'''
         # SAMPLE_RATE = 1
         # DURATION = 512
@@ -182,9 +294,78 @@ class LinearProjection:
         # # plt.plot(xf, f_x[:, :2])
         # # plt.show()
 
+        #
+        # f_x = self._f_denoise(f_x, index)
+        # f_x = self.filter_signal(f_x, 10000, index)
+        f_x = self._binarize_sig(f_x, index)
+        # f_x = self.filter_signal(f_x, 10000, index)
+
         # f_x = yf
         ''''''
         return f_x
+
+    def _binarize_sig(self, sigal, index):
+        f_sig = []
+        for element in sigal:
+            if element > 0:
+                f_sig.append(.5)
+            elif element < 0:
+                f_sig.append(-.5)
+            else:
+                f_sig.append(0)
+        return 10 * np.array(f_sig)
+
+    def filter_signal(self, signal, threshold, index, do_save):
+        fourier = rfft(signal)
+        frequencies = rfftfreq(signal.size, d=20e-3 / signal.size)
+        fourier[frequencies > threshold] = 0
+        filtered = irfft(fourier)
+        if do_save:
+            plt.figure(figsize=(15, 10))
+            plt.plot(signal, label='Raw')
+            plt.plot(filtered, label='Filtered')
+            plt.legend()
+            plt.title("FFT Denoising with threshold = " + str(threshold), size=15)
+            plt.savefig('sig_img/' + str(index) + 'sm.png', bbox_inches='tight', dpi=80)
+        return filtered
+
+    def _f_denoise(self, signal, index):
+        dt = 0.001
+        t = np.arange(0, 1, dt)
+        if len(np.shape(signal)) == 2:
+            n = np.shape(signal)[1]  # len(t)
+        else:
+            n = np.shape(signal)[0]  # len(t)
+        fhat = np.fft.fft(signal, n)  # computes the fft
+        psd = fhat * np.conj(fhat) / n
+        freq = (1 / (dt * n)) * np.arange(n)  # frequency array
+        idxs_half = np.arange(1, np.floor(n / 2), dtype=np.int32)  # first half index
+
+        minsignal, maxsignal = signal.min(), signal.max()
+
+        fhat = np.fft.fft(signal, n)  # computes the fft
+        psd = fhat * np.conj(fhat) / n
+        freq = (1 / (dt * n)) * np.arange(n)  # frequency array
+        idxs_half = np.arange(1, np.floor(n / 2), dtype=np.int32)  # first half index
+
+        fig, ax = plt.subplots(2, 1)
+        ax[0].plot(freq[idxs_half], np.abs(psd[idxs_half]), color='b', lw=1.0, label='PSD noisy')
+        ax[0].set_xlabel('Frequencies in Hz')
+        ax[0].set_ylabel('Amplitude')
+        ''''''
+        threshold = .3 * psd.max()
+        # psd_idxs = [True if (x < threshold and x > .3 * psd.max()) else False for x in psd ]
+        psd_idxs = psd > threshold
+        psd_clean = psd * psd_idxs  # zero out all the unnecessary powers
+        fhat_clean = psd_idxs * fhat  # used to retrieve the signal
+        signal_filtered = -1 * np.fft.ifft(fhat_clean)  # inverse fourier transform
+
+        ax[1].plot(freq[idxs_half], np.abs(psd_clean[idxs_half]), color='r', lw=1, label='PSD clean')
+        ax[1].set_xlabel('Frequencies in Hz')
+        ax[1].set_ylabel('Amplitude')
+        plt.savefig('sig_img/' + str(index) + 'signal-main.png', bbox_inches='tight', dpi=80)
+
+        return signal_filtered
 
     def _component_svd_weight(self, x):
         f_x = x
@@ -195,6 +376,82 @@ class LinearProjection:
         # u, s, vh = np.linalg.svd(x.T, full_matrices=True)
         # f_x = np.sum(np.array([s[i] * np.dot(np.expand_dims(u[i], 1), np.expand_dims(vh[i], 0)) for i in range(10,49)]), 0).T
         return f_x
+
+    def make_single_semantic_noise_fou(self, task_name, pca_accuracy, num, vec_percent_sem, vec_percent_id, alpha=1.0):
+        noises = []
+        eigenvalues = load(
+            'pca_obj/_' + task_name + self._eigenvalues_prefix + str(pca_accuracy) + ".npy")
+        eigenvectors = load(
+            'pca_obj/_' + task_name + self._eigenvectors_prefix + str(pca_accuracy) + ".npy")
+        meanvector = load('pca_obj/_' + task_name + self._meanvector_prefix + str(pca_accuracy) + ".npy")
+        #
+        # u = load('pca_obj/_' + task_name + self._u_prefix + str(pca_accuracy) + ".npy")
+        # s = load('pca_obj/_' + task_name + self._s_prefix + str(pca_accuracy) + ".npy")
+        # vh = load('pca_obj/_' + task_name + self._vt_prefix + str(pca_accuracy) + ".npy")
+        ''''''
+        k_sem = int(vec_percent_sem * len(eigenvalues))
+        k_id = int(len(eigenvalues) - vec_percent_id * len(eigenvalues))
+
+        eigenvalues_sem = eigenvalues[:k_sem]
+        eigenvectors_sem = eigenvectors[:, :k_sem]
+
+        eigenvalues_id = eigenvalues[k_id:]
+        eigenvectors_id = eigenvectors[:, k_id:]
+
+        # eigenvectors_sem_soft = softmax(eigenvectors_sem, axis=0)
+
+        # eigenvectors_sem_fx = self._modify_weight(eigenvectors)
+        # eigenvalues_sem_fx = eigenvalues
+
+        eigenvectors_sem_fx = eigenvectors
+        eigenvalues_sem_fx = eigenvalues
+
+        # eigenvalues_sem_fx = eigenvalues_sem  # abs(self._modify_weight(eigenvalues_sem))
+
+        # eigenvectors_sem_fx = self._component_svd_weight(self._modify_weight(eigenvectors_sem))
+
+        for i in range(num):
+            sample = np.round(np.random.RandomState(i).randn(1, 512), decimals=3)[0]
+            b_vector_p = self._calculate_b_vector(sample, True, eigenvalues, eigenvectors, meanvector)
+            b_vector_p_sem = self._calculate_b_vector(sample, True, eigenvalues_sem, eigenvectors_sem, meanvector)
+            b_vector_p_id = self._calculate_b_vector(sample, True, eigenvalues_id, eigenvectors_id, meanvector)
+
+            b_vector_p_sem_fx = self._calculate_b_vector(sample, False, eigenvalues_sem_fx, eigenvectors_sem_fx,
+                                                         meanvector)
+
+            out = alpha * meanvector + np.dot(eigenvectors, b_vector_p)
+            out_sem = (alpha * meanvector + np.dot(eigenvectors_sem, b_vector_p_sem))
+            out_id = alpha * meanvector + np.dot(eigenvectors_id, b_vector_p_id)
+
+            out_sem_fx = (alpha * meanvector + np.dot(eigenvectors_sem_fx, b_vector_p_sem_fx))
+
+            # sample = self._modify_weight(sample, index=i)
+            out_sem_fx = self._modify_weight(out_sem, index=1000 + i)
+
+            noises.append(np.expand_dims(sample, 0))
+            # noises.append(np.expand_dims(out, 0))
+            noises.append(np.expand_dims(out_sem, 0))
+            noises.append(np.expand_dims(out_sem_fx, 0))
+            # noises.append(np.expand_dims(out_id, 0))
+
+            # noises.append(np.expand_dims(1.0 * out_sem_fx + 1.0 * out_id, 0))
+
+            # '''SVD'''
+            # u, s, vh = np.linalg.svd(np.array(np.expand_dims(sample, 0)).T, full_matrices=True)
+            # noises.append(np.expand_dims(u.diagonal(), 0))
+
+            # for j in range(5):
+            #     out_svd = u[j:j+1, :]
+            #     noises.append(out_svd)
+
+            # # out_svd = np.mean((u[:, :k] @ np.diag(s)[:k, :k] @ vh[:k, :])[:, :3], -1)
+            # # out_svd = u[:, 6:7] @ np.diag(s)[:1, :1]
+            # out_svd = u[:, :1] @ eigenvalues[:1]
+            # noises.append(np.expand_dims(out_svd, 0))
+            # # for j in range(k):
+            # #     out_svd = u[:, j:j+1] @ eigenvalues[j:j+1]
+            # #     noises.append(np.expand_dims(out_svd, 0))
+        return noises
 
     def make_single_semantic_noise_n(self, task_name, pca_accuracy, num, vec_percent_sem, vec_percent_id, alpha=1.0):
         noises = []
@@ -264,7 +521,7 @@ class LinearProjection:
             # #     noises.append(np.expand_dims(out_svd, 0))
         return noises
 
-    def make_single_semantic_noise(self, task_name, pca_accuracy, num, alpha=1.0, vec_percent=1.0):
+    def make_single_semantic_noise(self, task_name, pca_accuracy, num, s_p, i_p, alpha=1.0):
         noises = []
         eigenvalues = load(
             'pca_obj/_' + task_name + self._eigenvalues_prefix + str(pca_accuracy) + ".npy")
@@ -272,21 +529,30 @@ class LinearProjection:
             'pca_obj/_' + task_name + self._eigenvectors_prefix + str(pca_accuracy) + ".npy")
         meanvector = load('pca_obj/_' + task_name + self._meanvector_prefix + str(pca_accuracy) + ".npy")
         #
-        u = load('pca_obj/_' + task_name + self._u_prefix + str(pca_accuracy) + ".npy")
-        s = load('pca_obj/_' + task_name + self._s_prefix + str(pca_accuracy) + ".npy")
-        vh = load('pca_obj/_' + task_name + self._vt_prefix + str(pca_accuracy) + ".npy")
+        # u = load('pca_obj/_' + task_name + self._u_prefix + str(pca_accuracy) + ".npy")
+        # s = load('pca_obj/_' + task_name + self._s_prefix + str(pca_accuracy) + ".npy")
+        # vh = load('pca_obj/_' + task_name + self._vt_prefix + str(pca_accuracy) + ".npy")
         ''''''
-        eigenvectors = eigenvectors[:, :int(vec_percent * len(eigenvalues))]
-        eigenvalues = eigenvalues[:int(vec_percent * len(eigenvalues))]
+        k_seg = int(s_p * len(eigenvalues))
+        k_id = int(i_p * len(eigenvalues))
 
-        k = int(vec_percent * len(eigenvalues))
+        eigenvectors_sem = eigenvectors[:, :k_seg]
+        eigenvalues_sem = eigenvalues[:k_seg]
+
+        eigenvectors_id = eigenvectors[:, k_id:]
+        eigenvalues_id = eigenvalues[k_id:]
 
         for i in range(num):
             sample = np.round(np.random.RandomState(i).randn(1, 512), decimals=3)[0]
-            b_vector_p = self._calculate_b_vector(sample, True, eigenvalues, eigenvectors, meanvector)
-            out = alpha * meanvector + np.dot(eigenvectors, b_vector_p)
+            b_vector_p_sem = self._calculate_b_vector(sample, True, eigenvalues_sem, eigenvectors_sem, meanvector)
+            b_vector_p_id = self._calculate_b_vector(sample, True, eigenvalues_id, eigenvectors_id, meanvector)
+
+            out_sem = alpha * meanvector + np.dot(eigenvectors_sem, b_vector_p_sem)
+            out_id = alpha * meanvector + np.dot(eigenvectors_id, b_vector_p_id)
+
             noises.append(np.expand_dims(sample, 0))
-            noises.append(np.expand_dims(out, 0))
+            # noises.append(np.expand_dims(out_sem, 0))
+            noises.append(np.expand_dims(out_id, 0))
 
             # '''SVD'''
             # u, s, vh = np.linalg.svd(np.array(np.expand_dims(sample, 0)).T, full_matrices=True)
@@ -295,6 +561,105 @@ class LinearProjection:
             # for j in range(5):
             #     out_svd = u[j:j+1, :]
             #     noises.append(out_svd)
+
+            # # out_svd = np.mean((u[:, :k] @ np.diag(s)[:k, :k] @ vh[:k, :])[:, :3], -1)
+            # # out_svd = u[:, 6:7] @ np.diag(s)[:1, :1]
+            # out_svd = u[:, :1] @ eigenvalues[:1]
+            # noises.append(np.expand_dims(out_svd, 0))
+            # # for j in range(k):
+            # #     out_svd = u[:, j:j+1] @ eigenvalues[j:j+1]
+            # #     noises.append(np.expand_dims(out_svd, 0))
+        return noises
+
+    def make_comp_semantic_noise(self, task_names, pca_accuracy, num, s_ps, i_ps, alpha=1.0):
+        noises = []
+        eigenvalues_0 = load(
+            'pca_obj/_' + task_names[0] + self._eigenvalues_prefix + str(pca_accuracy) + ".npy")
+        eigenvectors_0 = load(
+            'pca_obj_fft/_' + task_names[0] + self._eigenvectors_prefix + str(pca_accuracy) + ".npy")
+        meanvector_0 = load('pca_obj/_' + task_names[0] + self._meanvector_prefix + str(pca_accuracy) + ".npy")
+
+        eigenvalues_1 = load(
+            'pca_obj/_' + task_names[1] + self._eigenvalues_prefix + str(pca_accuracy) + ".npy")
+        eigenvectors_1 = load(
+            'pca_obj/_' + task_names[1] + self._eigenvectors_prefix + str(pca_accuracy) + ".npy")
+        meanvector_1 = load('pca_obj/_' + task_names[1] + self._meanvector_prefix + str(pca_accuracy) + ".npy")
+
+        ''''''
+        k_sem_0 = int(s_ps[0] * len(eigenvalues_0))
+        k_id_0 = int(i_ps[0] * len(eigenvalues_0))
+        eigenvectors_sem_0 = eigenvectors_0[:, :k_sem_0]
+        eigenvalues_sem_0 = eigenvalues_0[:k_sem_0]
+        eigenvectors_id_0 = eigenvectors_0[:, k_id_0:]
+        eigenvalues_id_0 = eigenvalues_0[k_id_0:]
+
+        k_sem_1 = int(s_ps[1] * len(eigenvalues_1))
+        k_id_1 = int(i_ps[1] * len(eigenvalues_1))
+        eigenvectors_sem_1 = eigenvectors_1[:, :k_sem_1]
+        eigenvalues_sem_1 = eigenvalues_1[:k_sem_1]
+        eigenvectors_id_1 = eigenvectors_1[:, k_id_1:]
+        eigenvalues_id_1 = eigenvalues_1[k_id_1:]
+
+        for i in range(num):
+            sample = np.round(np.random.RandomState(i).randn(1, 512), decimals=3)[0]
+
+            b_vector_p_sem_0 = self._calculate_b_vector(sample, True, eigenvalues_sem_0, eigenvectors_sem_0, meanvector_0)
+            b_vector_p_id_0 = self._calculate_b_vector(sample, True, eigenvalues_id_0, eigenvectors_id_0, meanvector_0)
+            out_sem_0 = alpha * meanvector_0 + np.dot(eigenvectors_sem_0, b_vector_p_sem_0)
+            out_id_0 = alpha * meanvector_0 + np.dot(eigenvectors_id_0, b_vector_p_id_0)
+
+            b_vector_p_sem_1 = self._calculate_b_vector(sample, True, eigenvalues_sem_1, eigenvectors_sem_1, meanvector_1)
+            b_vector_p_id_1 = self._calculate_b_vector(sample, True, eigenvalues_id_1, eigenvectors_id_1, meanvector_1)
+            out_sem_1 = alpha * meanvector_1 + np.dot(eigenvectors_sem_1, b_vector_p_sem_1)
+            out_id_1 = alpha * meanvector_1 + np.dot(eigenvectors_id_1, b_vector_p_id_1)
+
+            noises.append(np.expand_dims(sample, 0))
+            noises.append(np.expand_dims(out_sem_0, 0))
+            noises.append(np.expand_dims(out_sem_1, 0))
+            out_sem_m = (0.3 * out_sem_0) + (0.7 * out_sem_1)
+            noises.append(np.expand_dims(out_sem_m, 0))
+        return noises
+
+    def make_single_semantic_noise_fft(self, task_name, pca_accuracy, num, s_p, i_p, alpha=1.0):
+        noises = []
+        eigenvalues = load(
+            'pca_obj_fft/_' + task_name + self._eigenvalues_prefix + str(pca_accuracy) + ".npy")
+        eigenvectors = load(
+            'pca_obj_fft/_' + task_name + self._eigenvectors_prefix + str(pca_accuracy) + ".npy")
+        meanvector = load('pca_obj_fft/_' + task_name + self._meanvector_prefix + str(pca_accuracy) + ".npy")
+        #
+        # u = load('pca_obj_fft/_' + task_name + self._u_prefix + str(pca_accuracy) + ".npy")
+        # s = load('pca_obj_fft/_' + task_name + self._s_prefix + str(pca_accuracy) + ".npy")
+        # vh = load('pca_obj_fft/_' + task_name + self._vt_prefix + str(pca_accuracy) + ".npy")
+        ''''''
+        k_sem = int(s_p * len(eigenvalues))
+        k_id = int(i_p * len(eigenvalues))
+
+        eigenvectors_sem = eigenvectors[:, :k_sem]
+        eigenvalues_sem = eigenvalues[:k_sem]
+
+        eigenvectors_id = eigenvectors[:, k_id:]
+        eigenvalues_id = eigenvalues[k_id:]
+
+        '''semantic decompose by SVD'''
+        # u_sem = u[:, :k]
+        # v_sem = vh[:, :k]
+        # u_cov = np.dot(u_sem, u_sem.T)
+        for i in range(num):
+            sample = np.round(np.random.RandomState(i).randn(1, 512), decimals=3)[0]
+            sample = np.clip(sample, -10.0, +10.0)
+            sample = self.filter_signal(sample, 3000, i, False)
+            #
+            b_vector_p_sem = self._calculate_b_vector(sample, True, eigenvalues_sem, eigenvectors_sem, meanvector)
+            b_vector_p_id = self._calculate_b_vector(sample, True, eigenvalues_id, eigenvectors_id, meanvector)
+            out_sem = alpha * meanvector + np.dot(eigenvectors_sem, b_vector_p_sem)
+            out_id = alpha * meanvector + np.dot(eigenvectors_id, b_vector_p_id)
+            # out_svd = u_cov @ sample
+
+            noises.append(np.expand_dims(sample, 0))
+            noises.append(np.expand_dims(out_sem, 0))
+            noises.append(np.expand_dims(out_id, 0))
+            # noises.append(np.expand_dims(out_svd, 0))
 
             # # out_svd = np.mean((u[:, :k] @ np.diag(s)[:k, :k] @ vh[:k, :])[:, :3], -1)
             # # out_svd = u[:, 6:7] @ np.diag(s)[:1, :1]
@@ -916,6 +1281,16 @@ class LinearProjection:
         pca_input_data = pca.transform(input_data)
         eigenvalues = pca.explained_variance_
         eigenvectors = pca.components_
+        return pca_input_data, eigenvalues, eigenvectors
+
+    def _func_PCA_dask(self, input_data):
+        input_data = np.array(input_data)
+        dX = da.from_array(input_data, chunks='auto')
+        pca_d = DPCA()
+        pca_d.fit(dX)
+        pca_input_data = pca_d.transform(dX)
+        eigenvalues = pca_d.explained_variance_
+        eigenvectors = pca_d.components_
         return pca_input_data, eigenvalues, eigenvectors
 
     def _calculate_b_vector(self, sample, correction, eigenvalues, eigenvectors, meanvector):
