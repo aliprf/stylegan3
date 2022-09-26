@@ -551,7 +551,7 @@ class LinearProjection:
             out_id = alpha * meanvector + np.dot(eigenvectors_id, b_vector_p_id)
 
             noises.append(np.expand_dims(sample, 0))
-            # noises.append(np.expand_dims(out_sem, 0))
+            noises.append(np.expand_dims(out_sem, 0))
             noises.append(np.expand_dims(out_id, 0))
 
             # '''SVD'''
@@ -670,7 +670,7 @@ class LinearProjection:
             # #     noises.append(np.expand_dims(out_svd, 0))
         return noises
 
-    def make_compound_semantic_noise(self, data, num, pca_accuracy=99, alpha=1.0):
+    def make_compound_semantic_noise(self, data, num, pca_accuracy=99):
         eigenvalues_arr = []
         eigenvectors_arr = []
         meanvector_arr = []
@@ -685,10 +685,14 @@ class LinearProjection:
             eigenvectors_arr.append(eigenvectors)
             eigenvalues_arr.append(eigenvalues)
         '''calculate Mean'''
-        sem_p_0 = int(data[0]['sem_p'] * len(eigenvalues_arr[0]))
-        sem_p_1 = int(data[1]['sem_p'] * len(eigenvalues_arr[1]))
-        id_p_0 = int(len(eigenvalues_arr[0]) - data[0]['id_p'] * len(eigenvalues_arr[0]))
-        id_p_1 = int(len(eigenvalues_arr[1]) - data[1]['id_p'] * len(eigenvalues_arr[1]))
+        sem_p_0 = int(data[0]['s_p'] * len(eigenvalues_arr[0]))
+        id_p_0 = int(data[0]['i_p'] * len(eigenvalues_arr[0]))
+        alpha_0 = int(data[0]['alpha'])
+
+        sem_p_1 = int(data[1]['s_p'] * len(eigenvalues_arr[1]))
+        id_p_1 = int(data[1]['i_p'] * len(eigenvalues_arr[1]))
+        alpha_1= int(data[1]['alpha'])
+
         ''' feature 0 '''
         eigenvalues_sem_0 = eigenvalues_arr[0][:sem_p_0]
         eigenvectors_sem_0 = eigenvectors_arr[0][:, :sem_p_0]
@@ -712,22 +716,25 @@ class LinearProjection:
                                                         meanvector_arr[0])
             b_vector_p_id_0 = self._calculate_b_vector(sample, True, eigenvalues_id_0, eigenvectors_id_0,
                                                        meanvector_arr[0])
+            out_sem_0 = alpha_0 * meanvector_arr[0] + np.dot(eigenvectors_sem_0, b_vector_p_sem_0)
+            out_id_0 = alpha_0 * meanvector_arr[0] + np.dot(eigenvectors_id_0, b_vector_p_id_0)
 
-            b_vector_p_sem_1 = self._calculate_b_vector(sample, True, eigenvalues_sem_1, eigenvectors_sem_1,
+            b_vector_p_sem_1 = self._calculate_b_vector(out_sem_0, True, eigenvalues_sem_1, eigenvectors_sem_1,
                                                         meanvector_arr[1])
-            b_vector_p_id_1 = self._calculate_b_vector(sample, True, eigenvalues_id_1, eigenvectors_id_1,
+            b_vector_p_id_1 = self._calculate_b_vector(out_id_0, True, eigenvalues_id_1, eigenvectors_id_1,
                                                        meanvector_arr[1])
-
-            out_sem_0 = alpha * meanvector_arr[0] + np.dot(eigenvectors_sem_0, b_vector_p_sem_0)
-            out_id_0 = alpha * meanvector_arr[0] + np.dot(eigenvectors_id_0, b_vector_p_id_0)
-
-            out_sem_1 = alpha * meanvector_arr[1] + np.dot(eigenvectors_sem_1, b_vector_p_sem_1)
-            out_id_1 = alpha * meanvector_arr[1] + np.dot(eigenvectors_id_1, b_vector_p_id_1)
+            out_sem_1 = alpha_1 * meanvector_arr[1] + np.dot(eigenvectors_sem_1, b_vector_p_sem_1)
+            out_id_1 = alpha_1 * meanvector_arr[1] + np.dot(eigenvectors_id_1, b_vector_p_id_1)
 
             noises.append(np.expand_dims(sample, 0))
+            '''semantic-based synthesis'''
             # noises.append(np.expand_dims(out_sem_0, 0))
-            # noises.append(np.expand_dims(out_sem_0+out_id_0, 0))
-            noises.append(np.expand_dims(out_sem_1 + out_id_1, 0))
+            # noises.append(np.expand_dims(out_sem_1, 0))
+            '''facial attribute manipulation'''
+            noises.append(np.expand_dims(out_id_0, 0))
+            noises.append(np.expand_dims(out_id_1, 0))
+
+            # noises.append(np.expand_dims(0.9*out_id_1+0.1*out_sem_1, 0))
 
             # both_a = 0.5*(out_sem_0+out_id_0) + 0.5*(out_sem_1+out_id_1)
             # both_a = 0.5*(out_id_0) + 0.5*(out_id_1)

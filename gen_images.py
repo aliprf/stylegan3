@@ -767,13 +767,13 @@ if __name__ == "__main__":
         noise_male_child = fer_class.query_images_by_path(
             folder_names=['orig_new_angry_diverse', 'orig_50K_moreAngry', 'orig_100K_normal'],
             query={'fer': None, 'gender': [Gender_codes.MALE],
-                   'race': None, 'age': [Age_codes.CHILD, Age_codes.YOUTH]},
+                   'race': None, 'age': [Age_codes.CHILD]},
             num_samples=2e3
         )
         noise_female_child = fer_class.query_images_by_path(
             folder_names=['orig_new_angry_diverse', 'orig_50K_moreAngry', 'orig_100K_normal'],
             query={'fer': None, 'gender': [Gender_codes.FEMALE],
-                   'race': None, 'age': [Age_codes.CHILD, Age_codes.YOUTH]},
+                   'race': None, 'age': [Age_codes.CHILD]},
             num_samples=2e3
         )
         noise_child = noise_male_child + noise_female_child
@@ -785,7 +785,7 @@ if __name__ == "__main__":
         noise_male_old = fer_class.query_images_by_path(
             folder_names=['orig_new_angry_diverse', 'orig_50K_moreAngry', 'orig_100K_normal'],
             query={'fer': None, 'gender': [Gender_codes.MALE],
-                   'race': None, 'age':  [Age_codes.OLD]},
+                   'race': None, 'age': [Age_codes.OLD]},
             num_samples=2e3
         )
         noise_female_old = fer_class.query_images_by_path(
@@ -1011,39 +1011,15 @@ if __name__ == "__main__":
     # noise_af = lin_obj.make_single_semantic_noise(task_name='ANGRY_1', pca_accuracy=99, num=50, s_p=0.8, i_p=0.0, alpha=2.0)
     # noise_af = lin_obj.make_single_semantic_noise(task_name='FEMALE', pca_accuracy=99, num=50, s_p=0.8, i_p=0.0, alpha=2.5)
     # noise_af = lin_obj.make_single_semantic_noise(task_name='OLD', pca_accuracy=99, num=50, s_p=0.8, i_p=0.0, alpha=3.0)
-    noise_af = lin_obj.make_single_semantic_noise(task_name='BLACK', pca_accuracy=99, num=50, s_p=0.8, i_p=0.0, alpha=2.0)
+    # noise_af = lin_obj.make_single_semantic_noise(task_name='BLACK', pca_accuracy=99, num=50, s_p=0.99, i_p=0.0, alpha=2.0)
+    # noise_af = lin_obj.make_single_semantic_noise(task_name='CHILD', pca_accuracy=99, num=50, s_p=0.8, i_p=0.0, alpha=2.0)
 
-    # noise_af = lin_obj.make_single_semantic_noise_fft(task_name='ANGRY', pca_accuracy=99, num=25, s_p=0.1, i_p=0.2)
-    # noise_female = lin_obj.make_single_semantic_noise_fft(task_name='FEMALE', pca_accuracy=99, num=25, s_p=0.2, i_p=0.8)
-
-    # noise_af = list(0.2*np.array(noise_angry) + 0.8*np.array(noise_female))
-
-    # noise_af = lin_obj.make_single_semantic_noise_fft(task_name='FEMALE', pca_accuracy=99, num=25, s_p=0.1, i_p=0.01)
-    # noise_af = lin_obj.make_single_semantic_noise_fft(task_name='MALE', pca_accuracy=99, num=25, s_p=0.2, i_p=0.1, alpha=2.0)
-
-    # noise_af = lin_obj.make_single_semantic_noise_fft(task_name='ANGRY_FEMALE', pca_accuracy=99, num=25, vec_percent=0.2)
-    # noise_af = lin_obj.make_single_semantic_noise_fft(task_name='ANGRY_CHILD', pca_accuracy=99, num=25, vec_percent=0.1)
-    #
-    # noise_af = lin_obj.make_single_semantic_noise(task_name='ANGRY', pca_accuracy=99, num=20, vec_percent=0.1)
-    # noise_af = lin_obj.make_single_semantic_noise(task_name='ANGRY_FEMALE', pca_accuracy=99, num=10, vec_percent=0.5)
-    # noise_am = lin_obj.make_single_semantic_noise(task_name='ANGRY_MALE', pca_accuracy=99, num=30, vec_percent=0.7)
-    # noise_aw = lin_obj.make_single_semantic_noise(task_name='ANGRY_WHITE', pca_accuracy=99, num=25, vec_percent=0.9)
-    # noise_ab = lin_obj.make_single_semantic_noise(task_name='ANGRY_BLACK', pca_accuracy=99, num=30, vec_percent=0.99)
-    # noise_ach = lin_obj.make_single_semantic_noise(task_name='ANGRY_CHILD', pca_accuracy=99, num=30, vec_percent=0.20)
-    # noise_ao = lin_obj.make_single_semantic_noise(task_name='ANGRY_OLD', pca_accuracy=99, num=30, vec_percent=0.35)
-    # noise_hm = lin_obj.make_single_semantic_noise(task_name='HAPPY_MALE', pca_accuracy=99, num=30, vec_percent=0.15)
-
-    # noise_A = lin_obj.make_single_semantic_noise_fou(task_name='ANGRY', pca_accuracy=99, num=30,
-    #                                                  vec_percent_sem=0.8, vec_percent_id=0.99, alpha=1.0)
-
-    # noise_A = lin_obj.make_single_semantic_noise_n(task_name='ANGRY', pca_accuracy=99, num=30,
-    #                                                vec_percent_sem=0.1, vec_percent_id=0.99, alpha=1.0)
-
-    # noise = lin_obj.make_compound_semantic_noise(data=[{'t_n': 'FEMALE', 'p_ac': 99, 'sem_p': 0.1, 'id_p': 0.5},
-    #                                                    {'t_n': 'ANGRY', 'p_ac': 99, 'sem_p': 0.1, 'id_p': 0.5},
-    #                                                    ],
-    #                                              num=25
-    #                                              )
+    noise_af = lin_obj.make_compound_semantic_noise(
+        data=[{'t_n': 'FEMALE', 'p_ac': 99, 's_p': 0.5, 'i_p': 0.0, 'alpha': 3.0},
+              {'t_n': 'BLACK', 'p_ac': 99, 's_p': 0.1, 'i_p': 0.0, 'alpha': 2.0},
+              ],
+        num=25
+        )
 
     # noise_A = lin_obj.make_single_semantic_noise(task_name='ANGRY', pca_accuracy=99, num=30, vec_percent=0.1)
 
