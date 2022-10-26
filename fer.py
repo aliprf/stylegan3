@@ -14,10 +14,11 @@ from PIL import Image
 import os
 import csv
 import shutil
-from config import  FolderStructures
+from config import FolderStructures
 from image_utility import ImageUtilities
 from tqdm import tqdm
 from sklearn.utils import shuffle
+import glob
 
 
 class FER:
@@ -100,6 +101,48 @@ class FER:
         return z_mean + tf.exp(0.5 * z_log_var) * epsilon
         # return epsilon
 
+    def copy_all(self, cvs_file, s_img_folder, s_exp_path, s_noise_path, s_age_path, s_gender_path, s_race_path,
+                 d_img_folder, d_exp_path, d_noise_path, d_age_path, d_gender_path, d_race_path):
+        """"""
+        '''deleting files'''
+        files = glob.glob(d_img_folder + '*.jpg', recursive=True)
+        for f in files:
+            try:
+                os.remove(f)
+            except OSError as e:
+                pass
+        _paths = [d_exp_path, d_noise_path, d_age_path, d_gender_path, d_race_path]
+        for _path in tqdm(_paths):
+            files = glob.glob(_path + '*.npy', recursive=True)
+            print('deleting ->')
+            for f in files:
+                try:
+                    os.remove(f)
+                except OSError as e:
+                    pass
+
+        #  open csv file, and read img. find and copy it.
+        with open(cvs_file) as csv_file:
+            csv_reader = csv.reader(csv_file, delimiter=',')
+            line_count = 0
+            for row in tqdm(csv_reader):
+                if line_count == 0:
+                    print(f'Column names are {", ".join(row)}')
+                    line_count += 1
+                else:
+                    source_prefix = row[5]
+                    img_name = row[0]
+                    shutil.copy2(source_prefix+s_img_folder + img_name, d_img_folder + img_name)
+                    f_name = img_name.split('.')[0]
+
+                    shutil.copy2(source_prefix+s_noise_path + f_name + '.npy', d_noise_path + f_name + '.npy')
+                    shutil.copy2(source_prefix+s_exp_path + 'exp_' + f_name + '.npy', d_exp_path + 'exp_' + f_name + '.npy')
+                    shutil.copy2(source_prefix+s_age_path + f_name + '_age.npy', d_age_path + f_name + '_age.npy')
+                    shutil.copy2(source_prefix+s_gender_path + f_name + '_gender.npy', d_gender_path + f_name + '_gender.npy')
+                    shutil.copy2(source_prefix+s_race_path + f_name + '_race.npy', d_race_path + f_name + '_race.npy')
+
+                    line_count += 1
+
     def copy_final_images(self, cvs_file, s_img_folder, d_img_folder):
         #  open csv file, and read img. find and copy it.
         with open(cvs_file) as csv_file:
@@ -111,15 +154,15 @@ class FER:
                     line_count += 1
                 else:
                     img_name = row[0]
-                    # copy from s to d
                     shutil.copy2(s_img_folder + img_name, d_img_folder + img_name)
                     line_count += 1
 
-    def query_images(self, cvs_query_file, query, final_csv):
-        f_saver = open(final_csv, "w")
+    def query_images(self, cvs_query_file, query, final_csv, number_of_samples, prefix):
+        import random
+        f_saver = open(final_csv, "a")
         with open(cvs_query_file) as csv_file:
-            csv_reader = csv.reader(csv_file, delimiter=',')
-
+            csv_reader = list(csv.reader(csv_file, delimiter=','))
+            random.shuffle(csv_reader)
             for row in tqdm(csv_reader):
                 save_or_not = []
                 img_name = row[0]
@@ -159,9 +202,62 @@ class FER:
                                   " ".join(x for x in fer) + ',' +
                                   " ".join(x for x in age) + ',' +
                                   " ".join(x for x in race) + ',' +
-                                  " ".join(x for x in gender) + '\n')
+                                  " ".join(x for x in gender) + ',' +
+                                  prefix+'\n')
+                    number_of_samples -= 1
+                    if number_of_samples == 0:
+                        break
                 ''''''
         f_saver.close()
+
+    def create_histogram_csv_reduced(self, cvs_file, f_index, task, file_name):
+        if task == 'age':
+            histogram = np.zeros(shape=3, dtype=np.int)
+        if task == 'race':
+            histogram = np.zeros(shape=3, dtype=np.int)
+        if task == 'gender':
+            histogram = np.zeros(shape=2, dtype=np.int)
+        if task == 'exp':
+            histogram = np.zeros(shape=3, dtype=np.int)
+
+        with open(cvs_file) as csv_file:
+            csv_reader = csv.reader(csv_file, delimiter=',')
+            line_count = 0
+            for row in tqdm(csv_reader):
+                if line_count == 0:
+                    print(f'Column names are {", ".join(row)}')
+                    line_count += 1
+                else:
+                    fea_vec = row[f_index].split(' ')
+                    feature = np.argmax(fea_vec)
+                    if task == 'exp':
+                        if feature == 6: feature = 2
+                    if task == 'race':
+                        if feature == 3: feature = 2
+                        elif feature == 2: feature = 0
+                        else: feature = 1
+
+                    histogram[feature] += 1
+                    line_count += 1
+        '''plot'''
+        fig, ax = plt.subplots()
+        if task == 'exp':
+            ax.bar(['Neutral', 'Happy', 'Angry'], histogram, color=['#0096c7', '#57cc99', '#f77f00'])
+            plt.xlabel('Expression', fontweight='bold')
+        if task == 'age':
+            ax.bar(['0-15', '16-32', '33-53', '54-100'], histogram, color=['#0096c7', '#57cc99', '#f77f00', '#7209b7'])
+            plt.xlabel('Age', fontweight='bold')
+        if task == 'race':
+            ax.bar(['Black', 'Brown', 'White'], histogram, color=['#0096c7', '#57cc99', '#f77f00'])
+            plt.xlabel('Skin Color', fontweight='bold')
+        if task == 'gender':
+            ax.bar(['Female', 'Male'], histogram, color=['#0096c7', '#f77f00'])
+            plt.xlabel('Gender', fontweight='bold')
+
+        for i, v in enumerate(histogram):
+            ax.text(i - .1, v + 50, str(v), color='#0d1b2a')
+        plt.ylabel('Number of Samples', fontweight='bold')
+        plt.savefig(file_name + '.png')
 
     def create_histogram_csv(self, cvs_file, f_index, task, file_name):
         if task == 'age':
@@ -340,6 +436,7 @@ class FER:
                     if i > num_samples:
                         break
         return noise_arr
+
 
 class Sampling(tf.keras.layers.Layer):
     """Uses (z_mean, z_log_var) to sample z, the vector encoding a digit."""

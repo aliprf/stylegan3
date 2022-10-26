@@ -35,6 +35,9 @@ from os.path import exists
 from scipy.special import softmax
 from scipy.fft import fft, fftfreq, dct, dctn
 from numpy.fft import *
+from facial_attribute_editing_eval import FacialAttributeEditingEval
+from face_recognition import FaceRecognition
+import json
 
 
 def parse_range(s: Union[str, List]) -> List[int]:
@@ -230,7 +233,7 @@ def generate_with_noise(network_pkl: str,
                         outdir: str,
                         translate: Tuple[float, float],
                         rotate: float,
-                        class_idx: Optional[int]):
+                        class_idx: Optional[int], names=None, ):
     print('Loading networks from "%s"...' % network_pkl)
     device = torch.device('cuda')
     with dnnlib.util.open_url(network_pkl) as f:
@@ -253,7 +256,7 @@ def generate_with_noise(network_pkl: str,
         fer_class = FER(h5_address='/media/ali/extradata/Ad-Corre-weights/AffectNet_6336.h5')
     # Generate images.
     jj = 10000
-    for noise in noises:
+    for index, noise in enumerate(noises):
         z = torch.from_numpy(noise).to(device)
         if hasattr(G.synthesis, 'input'):
             m = make_transform(translate, rotate)
@@ -273,12 +276,17 @@ def generate_with_noise(network_pkl: str,
             # if exp == 'Happy': continue
             np.save(file=f'{outdir}{FolderStructures.feature_vectors}/exp_{str(jj)}',
                     arr=np.round(exp_vec, decimals=3))
-        np.save(file=f'{outdir}{FolderStructures.noise_vectors}/{str(jj)}', arr=noise)
+        if names is None:
+            np.save(file=f'{outdir}{FolderStructures.noise_vectors}/{str(jj)}', arr=noise)
         jj += 1
 
         # save image
-        img_util.save_image(npy_img=resized_npy_img, save_path=outdir + FolderStructures.images,
-                            save_name=str(jj))
+        if names is None:
+            img_util.save_image(npy_img=resized_npy_img, save_path=outdir + FolderStructures.images,
+                                save_name=str(jj))
+        else:
+            img_util.save_image(npy_img=resized_npy_img, save_path=outdir + FolderStructures.images,
+                                save_name=str(names[index]))
         # extract expression
 
 
@@ -294,10 +302,11 @@ def create_histogram_fer(folder_name):
     return 0
 
 
-def create_histogram_age(folder_name):
+def create_histogram_age(folder_name, name=''):
     age_class = AgeExtraction(model_path='./features/age/age_net.caffemodel',
                               proto_path='./features/age/age_net.prototxt')
-    age_class.create_histogram(age_path=f'{FolderStructures.prefix}zz_productin/' + folder_name + '/age_extraction/')
+    age_class.create_histogram(age_path=f'{FolderStructures.prefix}zz_productin/' + folder_name + '/age_extraction/',
+                               name=name)
 
 
 def create_histogram_gender(folder_name):
@@ -327,9 +336,14 @@ def predict_age_images(folder_name):
     """4 age ranges (0-15) as child, (16-32) as young, (33-53) as adult, and (54-100) as old"""
     age_class = AgeExtraction(model_path='./features/age/age_net.caffemodel',
                               proto_path='./features/age/age_net.prototxt')
-    age_class.predict_and_save(img_dir=f'{FolderStructures.prefix}zz_productin/' + folder_name + '/images/',
-                               out_dir=f'{FolderStructures.prefix}zz_productin/' + folder_name + '/age_extraction/',
-                               csv_file_path=f'{FolderStructures.prefix}zz_productin/' + folder_name + '/age.csv')
+
+    age_class.predict_and_save_deep_face(img_dir=f'{FolderStructures.prefix}zz_productin/' + folder_name + '/images/',
+                                         out_dir=f'{FolderStructures.prefix}zz_productin/' + folder_name + '/age_extraction/',
+                                         csv_file_path=f'{FolderStructures.prefix}zz_productin/' + folder_name + '/age.csv')
+
+    # age_class.predict_and_save(img_dir=f'{FolderStructures.prefix}zz_productin/' + folder_name + '/images/',
+    #                            out_dir=f'{FolderStructures.prefix}zz_productin/' + folder_name + '/age_extraction/',
+    #                            csv_file_path=f'{FolderStructures.prefix}zz_productin/' + folder_name + '/age.csv')
 
 
 def predict_gender_images(folder_name):
@@ -341,7 +355,7 @@ def predict_gender_images(folder_name):
                                   csv_file_path=f'{FolderStructures.prefix}zz_productin/' + folder_name + '/gender.csv')
 
 
-def predict_fer_images(_fer_class, folder_name):
+def predict_fer_images(folder_name):
     f_analyser = AnalyzeFer(noise_path=f'{FolderStructures.prefix}zz_productin/' + folder_name + '/noise_vectors',
                             exp_path=f'{FolderStructures.prefix}zz_productin/' + folder_name + '/feature_vectors')
     f_analyser.predict_and_save(img_dir=f'{FolderStructures.prefix}zz_productin/' + folder_name + '/images/',
@@ -615,9 +629,23 @@ if __name__ == "__main__":
     # analyze_fer_images(_fer_class)
     '''======================================'''
 
-    '''analyzing Age, Gender and Race'''
+    '''evaluation_set: analyzing Age, Gender and Race'''
     # predict_fer_images(_fer_class=None, folder_name=folder_name)
+    # folder_name = 'evaluation_set'
     # predict_age_images(folder_name=folder_name)
+    # create_histogram_age(folder_name=folder_name)
+
+    '''revise age'''
+    # folder_names = ['BLACK_2.0', 'FEMALE_2.5', 'FEMALE_3.5', 'FEMALE_4.0']
+    # for folder_name in folder_names:
+    #     predict_age_images(folder_name='evaluation_set/facial_a_modified/' + folder_name)
+    #     create_histogram_age(folder_name='evaluation_set/facial_a_modified/' + folder_name, name=folder_name + '_')
+
+    # folder_names = ['orig_new_angry_diverse', 'orig_50K_moreAngry', 'orig_100K_normal']
+    # for folder_name in folder_names:
+    #     predict_age_images(folder_name=folder_name)
+    #     create_histogram_age(folder_name=folder_name, name=folder_name+'_')
+
     # predict_gender_images(folder_name=folder_name)
     # predict_race_images(folder_name=folder_name)
     '''======================================'''
@@ -628,130 +656,6 @@ if __name__ == "__main__":
     # create_histogram_gender(folder_name=folder_name)
     # create_histogram_race(folder_name=folder_name)
     '''======================================'''
-
-    '''============================================================================'''
-    '''creating PCA fft'''
-    # create_pca(pca_accuracy=99,
-    #            tasks={'fer': [Expression_codes.ANGER],
-    #                   'gender': None,
-    #                   'race': None,
-    #                   'age': None},
-    #            name='ANGRY',
-    #            folder_names=['orig_new_angry_diverse', 'orig_50K_moreAngry'],
-    #            sample_limit=3000,
-    #            save_dir='./pca_obj/_')
-
-    # create_pca(pca_accuracy=99,
-    #                tasks={'fer': [Expression_codes.HAPPY],
-    #                       'gender': None,
-    #                       'race': None,
-    #                       'age': None},
-    #                name='HAPPY',
-    #                folder_names=['new_100K_normal'])
-    # '''     FEMALE'''
-    # create_pca(pca_accuracy=99,
-    #                tasks={'fer': None,
-    #                       'gender': [Gender_codes.FEMALE],
-    #                       'race': None,
-    #                       'age': None},
-    #                name='FEMALE',
-    #                folder_names=['new_100K_normal', 'new_angry_diverse'])
-    # # '''     MALE'''
-    # create_pca(pca_accuracy=99,
-    #                tasks={'fer': None,
-    #                       'gender': [Gender_codes.MALE],
-    #                       'race': None,
-    #                       'age': None},
-    #                name='MALE',
-    #                folder_names=['new_100K_normal', 'new_angry_diverse'])
-    # '''     ANGRY_MALE'''
-    # create_pca(pca_accuracy=99,
-    #                tasks={'fer': [Expression_codes.ANGER],
-    #                       'gender': [Gender_codes.MALE],
-    #                       'race': None,
-    #                       'age': None},
-    #                name='ANGRY_MALE', folder_name='')
-    # '''     ANGRY_BLACK'''
-    # create_pca(pca_accuracy=99,
-    #                tasks={'fer': [Expression_codes.ANGER],
-    #                       'gender': None,
-    #                       'race': [Race_codes.BLACK,
-    #                                Race_codes.INDIAN,
-    #                                Race_codes.MID_EST],
-    #                       'age': None},
-    #                name='ANGRY_BLACK', folder_name='')
-    # '''     ANGRY_WHITE'''
-    # create_pca(pca_accuracy=99,
-    #                tasks={'fer': [Expression_codes.ANGER],
-    #                       'gender': None,
-    #                       'race': [Race_codes.WHITE],
-    #                       'age': None},
-    #                name='ANGRY_WHITE', folder_name='')
-    # '''     ANGRY_CHILD'''
-    # create_pca(pca_accuracy=99,
-    #                tasks={'fer': [Expression_codes.ANGER],
-    #                       'gender': None,
-    #                       'race': None,
-    #                       'age': [Age_codes.CHILD]},
-    #                name='ANGRY_CHILD', folder_name='')
-    #
-    # '''     ANGRY_OLD'''
-    # create_pca(pca_accuracy=99,
-    #                tasks={'fer': [Expression_codes.ANGER],
-    #                       'gender': None,
-    #                       'race': None,
-    #                       'age': [Age_codes.OLD]},
-    #                name='ANGRY_OLD', folder_name='')
-    #
-    # '''     HAPPY_MALE'''
-    # create_pca(pca_accuracy=99,
-    #                tasks={'fer': [Expression_codes.HAPPY],
-    #                       'gender': [Gender_codes.MALE],
-    #                       'race': None,
-    #                       'age': None},
-    #                name='HAPPY_MALE', folder_name='')
-    #
-    # '''     HAPPY_FEMALE'''
-    # create_pca(pca_accuracy=99,
-    #                tasks={'fer': [Expression_codes.HAPPY],
-    #                       'gender': [Gender_codes.FEMALE],
-    #                       'race': None,
-    #                       'age': None},
-    #                name='HAPPY_FEMALE', folder_name='')
-    #
-    # '''     FEMALE'''
-    # create_pca(pca_accuracy=99,
-    #                tasks={'fer': None,
-    #                       'gender': [Gender_codes.FEMALE],
-    #                       'race': None,
-    #                       'age': None},
-    #                name='FEMALE',
-    #                folder_name='new_100K_normal')
-    # #
-    # # '''     MALE'''
-    # create_pca(pca_accuracy=99,
-    #                tasks={'fer': None,
-    #                       'gender': [Gender_codes.MALE],
-    #                       'race': None,
-    #                       'age': None},
-    #                name='MALE',
-    #                folder_name='new_100K_normal')
-    # '''     BLACK'''
-    # create_pca(pca_accuracy=99,
-    #                tasks={'fer': None,
-    #                       'gender': None,
-    #                       'race': [Race_codes.BLACK],
-    #                       'age': None},
-    #                name='BLACK')
-    # '''     WHITE'''
-    # create_pca(pca_accuracy=99,
-    #                tasks={'fer': None,
-    #                       'gender': None,
-    #                       'race': [Race_codes.WHITE],
-    #                       'age': None},
-    #                name='WHITE')
-    '''============================================================================'''
-
     '''creating PCA'''
     save_dir = './pca_obj/_'
 
@@ -760,6 +664,23 @@ if __name__ == "__main__":
     fer_class = FER()
     # pca_list = ['Angry', 'FEMALE', 'MALE', 'BLACK', 'OLD', 'CHILD']
     pca_list = []
+    '''WHITE'''
+    if 'WHITE' in pca_list:
+        print('WHITE')
+        noise_male_white = fer_class.query_images_by_path(
+            folder_names=['orig_100K_normal', 'orig_new_angry_diverse'],
+            query={'fer': None, 'gender': [Gender_codes.FEMALE],
+                   'race': [Race_codes.WHITE], 'age': None},
+            num_samples=20e3
+        )
+        noise_female_white = fer_class.query_images_by_path(
+            folder_names=['orig_100K_normal', 'orig_new_angry_diverse'],
+            query={'fer': None, 'gender': [Gender_codes.MALE],
+                   'race': [Race_codes.WHITE], 'age': None},
+            num_samples=20e3
+        )
+        noise_child = noise_male_white + noise_female_white
+        lin_obj.create_pca_from_list(noise_arr=noise_child, name='WHITE', save_dir='./pca_obj/_')
 
     '''CHILD'''
     if 'CHILD' in pca_list:
@@ -767,13 +688,13 @@ if __name__ == "__main__":
         noise_male_child = fer_class.query_images_by_path(
             folder_names=['orig_new_angry_diverse', 'orig_50K_moreAngry', 'orig_100K_normal'],
             query={'fer': None, 'gender': [Gender_codes.MALE],
-                   'race': None, 'age': [Age_codes.CHILD]},
+                   'race': None, 'age': [Age_codes.CHILD, Age_codes.YOUTH]},
             num_samples=2e3
         )
         noise_female_child = fer_class.query_images_by_path(
             folder_names=['orig_new_angry_diverse', 'orig_50K_moreAngry', 'orig_100K_normal'],
             query={'fer': None, 'gender': [Gender_codes.FEMALE],
-                   'race': None, 'age': [Age_codes.CHILD]},
+                   'race': None, 'age': [Age_codes.CHILD, Age_codes.YOUTH]},
             num_samples=2e3
         )
         noise_child = noise_male_child + noise_female_child
@@ -781,20 +702,47 @@ if __name__ == "__main__":
 
     '''OLD'''
     if 'OLD' in pca_list:
-        print('OLD')
-        noise_male_old = fer_class.query_images_by_path(
-            folder_names=['orig_new_angry_diverse', 'orig_50K_moreAngry', 'orig_100K_normal'],
-            query={'fer': None, 'gender': [Gender_codes.MALE],
-                   'race': None, 'age': [Age_codes.OLD]},
+        print('\n OLD')
+        noise_female_old_happy = fer_class.query_images_by_path(
+            folder_names=['orig_100K_normal'],
+            query={'fer': [Expression_codes.HAPPY], 'gender': [Gender_codes.FEMALE],
+                   'race': None, 'age': [Age_codes.OLD, Age_codes.MIDDLE]},
             num_samples=2e3
         )
-        noise_female_old = fer_class.query_images_by_path(
+        base_len = len(noise_female_old_happy)
+        print('noise_female_old_happy=> ' + str(len(noise_female_old_happy)))
+        '''--'''
+        noise_female_old_neutral = fer_class.query_images_by_path(
             folder_names=['orig_new_angry_diverse', 'orig_50K_moreAngry', 'orig_100K_normal'],
-            query={'fer': None, 'gender': [Gender_codes.FEMALE],
-                   'race': [Race_codes.BLACK], 'age': [Age_codes.OLD]},
-            num_samples=2e3
+            query={'fer': [Expression_codes.NEUTRAL], 'gender': [Gender_codes.FEMALE],
+                   'race': None, 'age': [Age_codes.OLD, Age_codes.MIDDLE]},
+            num_samples=base_len / 3
         )
-        noise_old = noise_male_old + noise_female_old
+        if len(noise_female_old_neutral) > base_len:
+            noise_female_old_neutral = noise_female_old_neutral[:base_len]
+        print('noise_female_old_neutral=> ' + str(len(noise_female_old_neutral)))
+        '''--'''
+        noise_male_old_happy = fer_class.query_images_by_path(
+            folder_names=['orig_100K_normal'],
+            query={'fer': [Expression_codes.HAPPY], 'gender': [Gender_codes.MALE],
+                   'race': None, 'age': [Age_codes.OLD, Age_codes.MIDDLE]},
+            num_samples=base_len
+        )
+        if len(noise_male_old_happy) > base_len:
+            noise_male_old_happy = noise_male_old_happy[:base_len]
+        print('noise_male_old_happy=> ' + str(len(noise_male_old_happy)))
+        '''--'''
+        noise_male_old_neutral = fer_class.query_images_by_path(
+            folder_names=['orig_new_angry_diverse', 'orig_50K_moreAngry', 'orig_100K_normal'],
+            query={'fer': [Expression_codes.NEUTRAL], 'gender': [Gender_codes.MALE],
+                   'race': None, 'age': [Age_codes.OLD, Age_codes.MIDDLE]},
+            num_samples=base_len / 3
+        )
+        if len(noise_male_old_neutral) > base_len:
+            noise_male_old_neutral = noise_male_old_neutral[:base_len]
+        print('noise_male_old_neutral=> ' + str(len(noise_male_old_neutral)))
+        '''---'''
+        noise_old = noise_female_old_happy + noise_female_old_neutral + noise_male_old_happy + noise_male_old_neutral
         lin_obj.create_pca_from_list(noise_arr=noise_old, name='OLD', save_dir='./pca_obj/_')
 
     '''BLACK'''
@@ -820,16 +768,24 @@ if __name__ == "__main__":
         print('Angry')
         noise_angry_female = fer_class.query_images_by_path(
             folder_names=['orig_new_angry_diverse', 'orig_50K_moreAngry', 'orig_100K_normal'],
-            query={'fer': [Expression_codes.ANGER], 'gender': [Gender_codes.FEMALE], 'race': None, 'age': None},
-            num_samples=2000
+            query={'fer': [Expression_codes.ANGER], 'gender': [Gender_codes.FEMALE], 'race': None,
+                   'age': [Age_codes.CHILD, Age_codes.YOUTH]},
+            num_samples=2e5
         )
+        base_len = len(noise_angry_female)
+        print('noise_angry_female=> ' + str(len(noise_angry_female)))
+
         noise_angry_male = fer_class.query_images_by_path(
             folder_names=['orig_new_angry_diverse', 'orig_50K_moreAngry', 'orig_100K_normal'],
-            query={'fer': [Expression_codes.ANGER], 'gender': [Gender_codes.MALE], 'race': None, 'age': None},
-            num_samples=500
+            query={'fer': [Expression_codes.ANGER], 'gender': [Gender_codes.MALE], 'race': None,
+                   'age': [Age_codes.CHILD, Age_codes.YOUTH]},
+            num_samples=base_len / 2
         )
+        if len(noise_angry_male) > base_len:
+            noise_angry_male = noise_angry_male[:base_len]
+        print('noise_angry_male=> ' + str(len(noise_angry_male)))
         noise_angry = noise_angry_female + noise_angry_male
-        lin_obj.create_pca_from_list(noise_arr=noise_angry, name='ANGRY_1', save_dir='./pca_obj/_')
+        lin_obj.create_pca_from_list(noise_arr=noise_angry, name='ANGRY', save_dir='./pca_obj/_')
 
     '''FEMALE'''
     if 'FEMALE' in pca_list:
@@ -1001,25 +957,141 @@ if __name__ == "__main__":
     #             break
 
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
+    # validation_jobs = ['noise_modification', 'synthesis', 'annotate', 'identity_comparison', 'semantic_score']
+    validation_jobs = ['identity_comparison', 'semantic_score']
+
+    '''facial attribute editing experiments'''
+    # tasks = ['FEMALE', 'ANGRY', 'BLACK']
+    # alphas = [3.5, 2.5, 2.0]  # identity = [96.68, 84.67, 79.61]
+    # alphas = [2.5, 2.0, 1.5]  # identity= [99.66, 98.87, 99.14]
+    # alphas = [4.0, 3.0, 1.0]  # identity= [92.83, 57.22, 99.97]
+
+    tasks = ['OLD', 'OLD']
+    alphas = [4.0, 5.0]  # identity= [3.5=> 96.30, ]
+
+    source_prefix = '/media/ali/extradata/styleGAN3_samples/v1/zz_productin/evaluation_set/'
+
+    if 'noise_modification' in validation_jobs:
+        for i, task in enumerate(tasks):
+            target_prefix = '/media/ali/extradata/styleGAN3_samples/v1/zz_productin/evaluation_set/facial_a_modified/' \
+                            + task + '_' + str(alphas[i]) + '/'
+
+            fae_obj = FacialAttributeEditingEval(source_image_path=source_prefix + 'images/',
+                                                 source_noise_path=source_prefix + 'noise_vectors/',
+                                                 source_expression_path=source_prefix + 'feature_vectors/',
+                                                 source_race_path=source_prefix + 'race_extraction/',
+                                                 source_age_path=source_prefix + 'age_extraction/',
+                                                 source_gender_path=source_prefix + 'gender_extraction/',
+                                                 target_image_path=target_prefix + 'images/',
+                                                 target_noise_path=target_prefix + 'noise_vectors/',
+                                                 target_expression_path=target_prefix + 'feature_vectors/',
+                                                 target_race_path=target_prefix + 'race_extraction/',
+                                                 target_age_path=target_prefix + 'age_extraction/',
+                                                 target_gender_path=target_prefix + 'gender_extraction/',
+                                                 )
+            fae_obj.modify_noise(task_name=task, pca_accuracy=99, s_p=0.3, i_p=0.0, alpha=alphas[i])
+    if 'synthesis' in validation_jobs:
+        for i, task in enumerate(tasks):
+            fae_obj = FacialAttributeEditingEval()
+            target_prefix = '/media/ali/extradata/styleGAN3_samples/v1/zz_productin/evaluation_set/facial_a_modified/'\
+                            + task + '_' + str(alphas[i]) + '/'
+            noises, names = fae_obj.get_modified_noises(noise_path=target_prefix + 'noise_vectors/')
+            '''         generating images:              '''
+            generate_with_noise(network_pkl=FolderStructures.styleGan_weight_path,
+                                noises=noises,
+                                names=names,
+                                fer_detection=False,
+                                truncation_psi=0.7,
+                                noise_mode='const',  # 'const', 'random', 'none'],
+                                outdir=target_prefix,
+                                translate=parse_vec2('0,0'),
+                                rotate=0,
+                                class_idx=0)
+            ''''''
+    if 'annotate' in validation_jobs:
+        annotation_jobs = ['fer', 'age', 'race', 'gender']
+        for i, task in enumerate(tasks):
+            folder_name = 'evaluation_set/facial_a_modified/' + task + '_' + str(alphas[i])
+            if 'fer' in annotation_jobs:
+                predict_fer_images(folder_name=folder_name)
+            if 'age' in annotation_jobs:
+                predict_age_images(folder_name=folder_name)
+            if 'race' in annotation_jobs:
+                predict_race_images(folder_name=folder_name)
+            if 'gender' in annotation_jobs:
+                predict_gender_images(folder_name=folder_name)
+
+    if 'identity_comparison' in validation_jobs:
+        fr_obj = FaceRecognition()
+        source_image_path = source_prefix + 'images'
+        for i, task in enumerate(tasks):
+            target_image_path = '/media/ali/extradata/styleGAN3_samples/v1/zz_productin/evaluation_set/facial_a_modified/' \
+                                + task + '_' + str(alphas[i]) + '/images'
+            match_score = fr_obj.compare_by_path(source_image_path, target_image_path)
+            print(task + ' ' + str(match_score) + '%')
+
+    if 'semantic_score' in validation_jobs:
+        fae_obj = FacialAttributeEditingEval()
+        for i, task in enumerate(tasks):
+            s_path = source_prefix
+            d_path = '/media/ali/extradata/styleGAN3_samples/v1/zz_productin/evaluation_set/facial_a_modified/' \
+                     + task + '_' + str(alphas[i]) + '/'
+            to_female, to_angry_neutral, to_black, to_old = fae_obj.calculate_semantic_score(task, s_path, d_path)
+            if task == 'FEMALE':
+                to_female['alpha'] = alphas[i]
+                with open('to_FEMALE' + str(alphas[i]) + '.txt', 'w') as convert_file:
+                    convert_file.write(json.dumps(to_female))
+            if task == 'ANGRY':
+                to_angry_neutral['alpha'] = alphas[i]
+                with open('to_ANGRY' + str(alphas[i]) + '.txt', 'w') as convert_file:
+                    convert_file.write(json.dumps(to_angry_neutral))
+            if task == 'BLACK':
+                to_black['alpha'] = alphas[i]
+                with open('to_BLACK' + str(alphas[i]) + '.txt', 'w') as convert_file:
+                    convert_file.write(json.dumps(to_black))
+            if task == 'OLD':
+                to_black['alpha'] = alphas[i]
+                with open('to_OLD' + str(alphas[i]) + '.txt', 'w') as convert_file:
+                    convert_file.write(json.dumps(to_old))
+
     '''Generating semantic-based images'''
 
     '''         creating single-semantic noises     '''
     # noise_af = lin_obj.make_comp_semantic_noise(task_names=['ANGRY', 'FEMALE'],
     #                                             pca_accuracy=99, num=25,
     #                                             s_ps=[0.1, 0.5], i_ps=[0.1, 0.3])
-    # noise_af = lin_obj.make_single_semantic_noise(task_name='ANGRY', pca_accuracy=99, num=20, vec_percent=0.1, alpha=2)
-    # noise_af = lin_obj.make_single_semantic_noise(task_name='ANGRY_1', pca_accuracy=99, num=50, s_p=0.8, i_p=0.0, alpha=2.0)
-    # noise_af = lin_obj.make_single_semantic_noise(task_name='FEMALE', pca_accuracy=99, num=50, s_p=0.8, i_p=0.0, alpha=2.5)
-    # noise_af = lin_obj.make_single_semantic_noise(task_name='OLD', pca_accuracy=99, num=50, s_p=0.8, i_p=0.0, alpha=3.0)
+    # noise_af = lin_obj.make_single_semantic_noise_disentangle(task_name='BLACK', pca_accuracy=99, num=150,
+    #                                                           s_p=0.999, i_p=0.0, alpha=+2.0)
+    # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    # noise_af = lin_obj.make_single_semantic_noise(task_name='WHITE', pca_accuracy=99, num=50, s_p=0.999, i_p=0.0, alpha=+5.0)
+    # noise_af = lin_obj.make_single_semantic_noise(task_name='CHILD', pca_accuracy=99, num=50, s_p=0.999, i_p=0.0, alpha=+5.0)
+
+    # noise_af = lin_obj.make_single_semantic_noise(task_name='OLD', pca_accuracy=99, num=50, s_p=0.999, i_p=0.0, alpha=+5.0)
+    # noise_af = lin_obj.make_single_semantic_noise(task_name='BLACK', pca_accuracy=99, num=150, s_p=0.999, i_p=0.0, alpha=+2.0)
+    # noise_af = lin_obj.make_single_semantic_noise(task_name='ANGRY', pca_accuracy=99, num=150, s_p=0.999, i_p=0.0, alpha=+3.0)
+
+    # noise_af = lin_obj.make_single_semantic_noise(task_name='ANGRY', pca_accuracy=99, num=50, s_p=0.2, i_p=0.0, alpha=+3.0)
+    # noise_af = lin_obj.make_single_semantic_noise(task_name='FEMALE', pca_accuracy=99, num=50, s_p=0.3, i_p=0.0, alpha=1.0)
+    # noise_af = lin_obj.make_single_semantic_noise(task_name='OLD', pca_accuracy=99, num=50, s_p=0.8, i_p=0.0, alpha=2.5)
     # noise_af = lin_obj.make_single_semantic_noise(task_name='BLACK', pca_accuracy=99, num=50, s_p=0.99, i_p=0.0, alpha=2.0)
     # noise_af = lin_obj.make_single_semantic_noise(task_name='CHILD', pca_accuracy=99, num=50, s_p=0.8, i_p=0.0, alpha=2.0)
+    #
+    '''semanti-based config'''
+    # noise_af = lin_obj.make_compound_semantic_noise(
+    #     data=[
+    #             {'t_n': 'ANGRY', 'p_ac': 99, 's_p': 0.4, 'i_p': 0.0, 'alpha': 4.0},
+    #             {'t_n': 'FEMALE', 'p_ac': 99, 's_p': 0.2, 'i_p': 0.0, 'alpha': 5.0}
+    #           ],
+    #     num=25
+    # )
 
-    noise_af = lin_obj.make_compound_semantic_noise(
-        data=[{'t_n': 'FEMALE', 'p_ac': 99, 's_p': 0.5, 'i_p': 0.0, 'alpha': 3.0},
-              {'t_n': 'BLACK', 'p_ac': 99, 's_p': 0.1, 'i_p': 0.0, 'alpha': 2.0},
-              ],
-        num=25
-        )
+    # noise_af = lin_obj.make_compound_semantic_noise(
+    #     data=[{'t_n': 'FEMALE', 'p_ac': 99, 's_p': 0.5, 'i_p': 0.0, 'alpha': 4.0},
+    #           {'t_n': 'BLACK', 'p_ac': 99, 's_p': 0.5, 'i_p': 0.0, 'alpha': 2.0},
+    #           ],
+    #     num=25
+    #     )
 
     # noise_A = lin_obj.make_single_semantic_noise(task_name='ANGRY', pca_accuracy=99, num=30, vec_percent=0.1)
 
@@ -1042,10 +1114,7 @@ if __name__ == "__main__":
     #                                              )
 
     '''======================================'''
-    # noise_af = np.load('./angry_noises.npy')
-    # noise_af = np.load('./angry_noises_ae.npy')
-    # noise_af = np.load('./hap.npy')
-    # '''         generating images:              '''
+    '''         generating images:              '''
     generate_with_noise(network_pkl=FolderStructures.styleGan_weight_path,
                         noises=noise_af,
                         fer_detection=False,
@@ -1115,15 +1184,43 @@ if __name__ == "__main__":
     #                             )
     # #
     '''filter with query'''
-    # fer_class.query_images(cvs_query_file=prefix + './angry_50k.csv',
-    # fer_class.query_images(cvs_query_file='./happy_100k.csv',
-    #                        query={
-    #                            'fer': [Expression_codes.ANGER, Expression_codes.NEUTRAL],
-    #                            'fer': [Expression_codes.HAPPY],
-    #                            'gender': [Gender_codes.FEMALE],
-    #                            'race': [Race_codes.BLACK],
-    #                            'age': [Age_codes.YOUTH, Age_codes.MIDDLE, Age_codes.OLD]},
-    # final_csv='HAPPY_MALE_BLACK.csv'
+    # eval_tasks = ['csv_creation', 'copy', 'histogram']
+    eval_tasks = []
+
+    if 'csv_creation' in eval_tasks:
+        fer_class.query_images(cvs_query_file='./happy_100k.csv',
+                               prefix='/media/ali/extradata/styleGAN3_samples/v1/zz_productin/orig_100K_normal/',
+                               query={
+                                   'fer': [Expression_codes.HAPPY, Expression_codes.NEUTRAL, Expression_codes.ANGER],
+                                   'gender': [Gender_codes.FEMALE, Gender_codes.MALE],
+                                   'race': [Race_codes.BLACK, Race_codes.WHITE, Race_codes.INDIAN, Race_codes.MID_EST],
+                                   'age': None},
+                               final_csv='10k_evaluation.csv', number_of_samples=8764)  # 1236 , 8764
+        fer_class.query_images(cvs_query_file='./angry_50k.csv',
+                               prefix='/media/ali/extradata/styleGAN3_samples/v1/zz_productin/orig_50K_moreAngry/',
+                               query={
+                                   'fer': [Expression_codes.NEUTRAL, Expression_codes.ANGER],
+                                   'gender': [Gender_codes.FEMALE, Gender_codes.MALE],
+                                   'race': [Race_codes.BLACK, Race_codes.WHITE, Race_codes.INDIAN, Race_codes.MID_EST],
+                                   'age': None},
+                               final_csv='10k_evaluation.csv', number_of_samples=1236)  # 1236 , 8764
+    '''         copy Evaluation Set'''
+    if 'copy' in eval_tasks:
+        fer_class.copy_all(cvs_file='10k_evaluation.csv',
+                           s_img_folder='images/',
+                           s_noise_path='noise_vectors/',
+                           s_exp_path='feature_vectors/',
+                           s_age_path='age_extraction/',
+                           s_gender_path='gender_extraction/',
+                           s_race_path='race_extraction/',
+                           d_img_folder=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/evaluation_set/images/',
+                           d_noise_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/evaluation_set/noise_vectors/',
+                           d_exp_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/evaluation_set/feature_vectors/',
+                           d_age_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/evaluation_set/age_extraction/',
+                           d_gender_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/evaluation_set/gender_extraction/',
+                           d_race_path=f'/media/ali/extradata/styleGAN3_samples/v1/zz_productin/evaluation_set/race_extraction/'
+                           )
+
     # final_csv='HAPPY_MALE_WHITE.csv'
     # final_csv='HAPPY_FEMALE_WHITE.csv'
     # final_csv='HAPPY_FEMALE_BLACK.csv'
@@ -1131,8 +1228,18 @@ if __name__ == "__main__":
 
     '''         make the histograms'''
     # image	expression	age	race gender
-    # fer_class.create_histogram_csv(cvs_file=prefix + 'angry.csv', task='gender', file_name='Angry_gender', f_index=4)
-    # fer_class.create_histogram_csv(cvs_file=prefix + 'happy.csv', task='gender', file_name='Happy_gender', f_index=4)
+    if 'histogram' in eval_tasks:
+        prefix = '/media/ali/extradata/styleGAN3_samples/v1/zz_productin/evaluation_set/'
+        fer_class.create_histogram_csv_reduced(cvs_file=prefix + '10k_evaluation.csv', task='exp', file_name='10K_exp',
+                                               f_index=1)
+        fer_class.create_histogram_csv_reduced(cvs_file=prefix + '10k_evaluation.csv', task='gender',
+                                               file_name='10K_gender', f_index=4)
+        fer_class.create_histogram_csv_reduced(cvs_file=prefix + '10k_evaluation.csv', task='race',
+                                               file_name='10K_skin_color', f_index=3)
+        fer_class.create_histogram_csv_reduced(cvs_file=prefix + '10k_evaluation.csv', task='age', file_name='10K_age',
+                                               f_index=2)
+
+    # fer_class.create_histogram_csv(cvs_file=prefix + 'happy.csv', task='v', file_name='Happy_gender', f_index=4)
     # fer_class.create_histogram_csv(cvs_file=prefix + '0_final_angry.csv', task='age', file_name='0_A_age', f_index=2)
     # fer_class.create_histogram_csv(cvs_file=prefix + '0_final_angry.csv', task='race', file_name='0_A_race', f_index=3)
     # fer_class.create_histogram_csv(cvs_file=prefix + '0_final_happy.csv', task='age', file_name='0_H_age', f_index=2)

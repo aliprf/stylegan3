@@ -5,6 +5,7 @@ import cv2
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from scipy import interpolate, linalg
+from deepface import DeepFace
 
 
 class AgeExtraction:
@@ -26,7 +27,7 @@ class AgeExtraction:
         age_4_classes[3] = np.sum(age_8_classes[0, 7])
         return age_4_classes
 
-    def create_histogram(self, age_path):
+    def create_histogram(self, age_path, name=''):
         histogram = np.zeros(shape=4, dtype=np.int)
         for file in tqdm(os.listdir(age_path)):
             if file.endswith('.npy'):
@@ -36,12 +37,40 @@ class AgeExtraction:
                 histogram[age] += 1
         '''plot'''
         fig, ax = plt.subplots()
-        ax.bar(['0-15', '16-32', '33-53', '54-100'], histogram, color='#219ebc')
+        ax.bar(['0-15', '16-32', '33-53', '54-100'], histogram, color=['#0096c7', '#57cc99', '#f77f00', '#7209b7'])
         for i, v in enumerate(histogram):
-            ax.text(i - .1, v + 3, str(v), color='#ff006e')
+            ax.text(i - .1, v + 3, str(v))
         plt.ylabel('Number of Samples', fontweight='bold')
         plt.xlabel('Age', fontweight='bold')
-        plt.savefig('age_hist.png')
+        plt.savefig(name + 'age_hist.png')
+
+    def predict_and_save_deep_face(self, img_dir, out_dir, csv_file_path):
+        images_name_list = sorted(os.listdir(img_dir))
+        f = open(csv_file_path, "w")
+        for image_name in tqdm(images_name_list):
+            img_path = img_dir + image_name
+
+            age_4_classes = np.zeros(4)
+            try:
+                obj = DeepFace.analyze(img_path=img_path, actions=['age'],  enforce_detection=False)
+                age_pr = obj['age']
+                if 0 <= age_pr <= 15:
+                    age_4_classes[0] = 1.0
+                elif 16 <= age_pr <= 32:
+                    age_4_classes[1] = 1.0
+                elif 33 <= age_pr <= 53:
+                    age_4_classes[2] = 1.0
+                elif 54 <= age_pr <= 100:
+                    age_4_classes[3] = 1.0
+            except Exception as e:
+                print(str(e))
+
+            age_dir_name = out_dir + os.path.splitext(image_name)[0] + '_age.npy'
+            np.save(age_dir_name, age_4_classes)
+            f.write(str(os.path.splitext(image_name)[0]) + ',' + " ".join(
+                str(x) for x in np.round(age_4_classes.tolist(), 3).tolist()) + ' \n')
+        ''''''
+        f.close()
 
     def predict_and_save(self, img_dir, out_dir, csv_file_path):
         images_name_list = sorted(os.listdir(img_dir))
@@ -62,5 +91,6 @@ class AgeExtraction:
 
             age_dir_name = out_dir + '/' + os.path.splitext(image_name)[0] + '_age.npy'
             np.save(age_dir_name, age_4_classes)
-            f.write(str(os.path.splitext(image_name)[0]) + ',' + " ".join(str(x) for x in np.round(age_4_classes.tolist(), 3).tolist()) + ' \n')
+            f.write(str(os.path.splitext(image_name)[0]) + ',' + " ".join(
+                str(x) for x in np.round(age_4_classes.tolist(), 3).tolist()) + ' \n')
         f.close()

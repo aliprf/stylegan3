@@ -521,13 +521,14 @@ class LinearProjection:
             # #     noises.append(np.expand_dims(out_svd, 0))
         return noises
 
-    def make_single_semantic_noise(self, task_name, pca_accuracy, num, s_p, i_p, alpha=1.0):
+    def make_single_semantic_noise_disentangle(self, task_name, pca_accuracy, num, s_p, i_p, alpha=1.0):
         noises = []
         eigenvalues = load(
             'pca_obj/_' + task_name + self._eigenvalues_prefix + str(pca_accuracy) + ".npy")
         eigenvectors = load(
             'pca_obj/_' + task_name + self._eigenvectors_prefix + str(pca_accuracy) + ".npy")
         meanvector = load('pca_obj/_' + task_name + self._meanvector_prefix + str(pca_accuracy) + ".npy")
+
         #
         # u = load('pca_obj/_' + task_name + self._u_prefix + str(pca_accuracy) + ".npy")
         # s = load('pca_obj/_' + task_name + self._s_prefix + str(pca_accuracy) + ".npy")
@@ -542,16 +543,72 @@ class LinearProjection:
         eigenvectors_id = eigenvectors[:, k_id:]
         eigenvalues_id = eigenvalues[k_id:]
 
+        meanvector_m = load('pca_obj/_' + 'MALE' + self._meanvector_prefix + str(pca_accuracy) + ".npy")
+
         for i in range(num):
             sample = np.round(np.random.RandomState(i).randn(1, 512), decimals=3)[0]
             b_vector_p_sem = self._calculate_b_vector(sample, True, eigenvalues_sem, eigenvectors_sem, meanvector)
             b_vector_p_id = self._calculate_b_vector(sample, True, eigenvalues_id, eigenvectors_id, meanvector)
 
-            out_sem = alpha * meanvector + np.dot(eigenvectors_sem, b_vector_p_sem)
+            out_sem = (alpha * meanvector + np.dot(eigenvectors_sem, b_vector_p_sem))
+            out_id = alpha * meanvector + np.dot(eigenvectors_id, b_vector_p_id)
+            out_id_dis = alpha * meanvector + np.dot(eigenvectors_id, b_vector_p_id) - 0.8 * meanvector_m
+
+            noises.append(np.expand_dims(sample, 0))
+            # noises.append(np.expand_dims(out_sem, 0))
+            noises.append(np.expand_dims(out_id, 0))
+            noises.append(np.expand_dims(out_id_dis, 0))
+
+            # '''SVD'''
+            # u, s, vh = np.linalg.svd(np.array(np.expand_dims(sample, 0)).T, full_matrices=True)
+            # noises.append(np.expand_dims(u.diagonal(), 0))
+
+            # for j in range(5):
+            #     out_svd = u[j:j+1, :]
+            #     noises.append(out_svd)
+
+            # # out_svd = np.mean((u[:, :k] @ np.diag(s)[:k, :k] @ vh[:k, :])[:, :3], -1)
+            # # out_svd = u[:, 6:7] @ np.diag(s)[:1, :1]
+            # out_svd = u[:, :1] @ eigenvalues[:1]
+            # noises.append(np.expand_dims(out_svd, 0))
+            # # for j in range(k):
+            # #     out_svd = u[:, j:j+1] @ eigenvalues[j:j+1]
+            # #     noises.append(np.expand_dims(out_svd, 0))
+        return noises
+
+    def make_single_semantic_noise(self, task_name, pca_accuracy, num, s_p, i_p, alpha=1.0):
+        noises = []
+        eigenvalues = load(
+            'pca_obj/_' + task_name + self._eigenvalues_prefix + str(pca_accuracy) + ".npy")
+        eigenvectors = load(
+            'pca_obj/_' + task_name + self._eigenvectors_prefix + str(pca_accuracy) + ".npy")
+        meanvector = load('pca_obj/_' + task_name + self._meanvector_prefix + str(pca_accuracy) + ".npy")
+
+        #
+        # u = load('pca_obj/_' + task_name + self._u_prefix + str(pca_accuracy) + ".npy")
+        # s = load('pca_obj/_' + task_name + self._s_prefix + str(pca_accuracy) + ".npy")
+        # vh = load('pca_obj/_' + task_name + self._vt_prefix + str(pca_accuracy) + ".npy")
+        ''''''
+        k_seg = int(s_p * len(eigenvalues))
+        k_id = int(i_p * len(eigenvalues))
+
+        eigenvectors_sem = eigenvectors[:, :k_seg]
+        eigenvalues_sem = eigenvalues[:k_seg]
+
+        eigenvectors_id = eigenvectors[:, k_id:]
+        eigenvalues_id = eigenvalues[k_id:]
+        for i in range(num):
+            sample = np.round(np.random.RandomState(i).randn(1, 512), decimals=3)[0]
+            b_vector_p_sem = self._calculate_b_vector(sample, True, eigenvalues_sem, eigenvectors_sem, meanvector)
+            b_vector_p_id = self._calculate_b_vector(sample, True, eigenvalues_id, eigenvectors_id, meanvector)
+
+            out_sem = (alpha * meanvector + np.dot(eigenvectors_sem, b_vector_p_sem))
+            # out_sem = -(out_sem / np.linalg.norm(out_sem))
             out_id = alpha * meanvector + np.dot(eigenvectors_id, b_vector_p_id)
 
             noises.append(np.expand_dims(sample, 0))
-            noises.append(np.expand_dims(out_sem, 0))
+            # noises.append(np.expand_dims(meanvector, 0))
+            # noises.append(np.expand_dims(out_sem, 0))
             noises.append(np.expand_dims(out_id, 0))
 
             # '''SVD'''
@@ -603,12 +660,14 @@ class LinearProjection:
         for i in range(num):
             sample = np.round(np.random.RandomState(i).randn(1, 512), decimals=3)[0]
 
-            b_vector_p_sem_0 = self._calculate_b_vector(sample, True, eigenvalues_sem_0, eigenvectors_sem_0, meanvector_0)
+            b_vector_p_sem_0 = self._calculate_b_vector(sample, True, eigenvalues_sem_0, eigenvectors_sem_0,
+                                                        meanvector_0)
             b_vector_p_id_0 = self._calculate_b_vector(sample, True, eigenvalues_id_0, eigenvectors_id_0, meanvector_0)
             out_sem_0 = alpha * meanvector_0 + np.dot(eigenvectors_sem_0, b_vector_p_sem_0)
             out_id_0 = alpha * meanvector_0 + np.dot(eigenvectors_id_0, b_vector_p_id_0)
 
-            b_vector_p_sem_1 = self._calculate_b_vector(sample, True, eigenvalues_sem_1, eigenvectors_sem_1, meanvector_1)
+            b_vector_p_sem_1 = self._calculate_b_vector(sample, True, eigenvalues_sem_1, eigenvectors_sem_1,
+                                                        meanvector_1)
             b_vector_p_id_1 = self._calculate_b_vector(sample, True, eigenvalues_id_1, eigenvectors_id_1, meanvector_1)
             out_sem_1 = alpha * meanvector_1 + np.dot(eigenvectors_sem_1, b_vector_p_sem_1)
             out_id_1 = alpha * meanvector_1 + np.dot(eigenvectors_id_1, b_vector_p_id_1)
@@ -691,7 +750,7 @@ class LinearProjection:
 
         sem_p_1 = int(data[1]['s_p'] * len(eigenvalues_arr[1]))
         id_p_1 = int(data[1]['i_p'] * len(eigenvalues_arr[1]))
-        alpha_1= int(data[1]['alpha'])
+        alpha_1 = int(data[1]['alpha'])
 
         ''' feature 0 '''
         eigenvalues_sem_0 = eigenvalues_arr[0][:sem_p_0]
@@ -726,6 +785,9 @@ class LinearProjection:
             out_sem_1 = alpha_1 * meanvector_arr[1] + np.dot(eigenvectors_sem_1, b_vector_p_sem_1)
             out_id_1 = alpha_1 * meanvector_arr[1] + np.dot(eigenvectors_id_1, b_vector_p_id_1)
 
+            out_id2 = alpha_1 * meanvector_arr[1] + np.dot(eigenvectors_id_1, b_vector_p_id_1) + \
+                       1.0 * meanvector_arr[1]
+
             noises.append(np.expand_dims(sample, 0))
             '''semantic-based synthesis'''
             # noises.append(np.expand_dims(out_sem_0, 0))
@@ -733,6 +795,7 @@ class LinearProjection:
             '''facial attribute manipulation'''
             noises.append(np.expand_dims(out_id_0, 0))
             noises.append(np.expand_dims(out_id_1, 0))
+            # noises.append(np.expand_dims(out_id2, 0))
 
             # noises.append(np.expand_dims(0.9*out_id_1+0.1*out_sem_1, 0))
 
